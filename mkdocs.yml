@@ -1,6 +1,7 @@
 site_name: AI Agent Gateway Documentation
 site_description: Intelligent Gateway between AI Coding Agents and LLM Providers
 site_author: ElJoker63
+site_url: https://eljoker63.github.io/my-gateway/
 
 theme:
   name: material
