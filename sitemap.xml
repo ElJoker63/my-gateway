@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/API/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/API/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/API/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/ARCHITECTURE/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/ARCHITECTURE/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/ARCHITECTURE/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/CONFIGURATION/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/CONFIGURATION/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/CONFIGURATION/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/MEMORY_SYSTEM/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/MEMORY_SYSTEM/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/MEMORY_SYSTEM/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/es/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/es/API/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/API/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/API/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/es/ARCHITECTURE/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/ARCHITECTURE/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/ARCHITECTURE/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/es/CONFIGURATION/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/CONFIGURATION/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/CONFIGURATION/"/>
+    </url>
+    <url>
+        <loc>https://eljoker63.github.io/my-gateway/es/MEMORY_SYSTEM/</loc>
+        <lastmod>2026-07-23</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://eljoker63.github.io/my-gateway/es/MEMORY_SYSTEM/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://eljoker63.github.io/my-gateway/MEMORY_SYSTEM/"/>
+    </url>
+</urlset>
