@@ -45,13 +45,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install mkdocs-material mkdocs-static-i18n
 
-      - name: Configure Git User
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Build Documentation
+        run: mkdocs build
 
-      - name: Deploy Documentation to 'docs' Branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdocs gh-deploy --force --remote-branch docs
+      - name: Deploy to 'docs' Branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: docs
+          force_orphan: true
