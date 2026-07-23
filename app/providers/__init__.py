@@ -1,21 +1,77 @@
 """
 LLM Provider registry and factory.
-Manages provider instances and registers key pools with the KeyManager.
+Manages provider instances and registers key pools with the KeyManager across all 24 supported providers.
 """
 
 import logging
 from typing import Optional
 
 from app.config import get_settings
+from app.services.model_sync import register_provider_metadata
 from .base import LLMProvider
+
+# Legacy root providers
 from .nvidia import NvidiaProvider
 from .openai import OpenAIProvider
 from .groq import GroqProvider
 from .ollama import OllamaProvider
 
+# Package-based providers
+from .openrouter import OpenRouterProvider
+from .google import GoogleProvider
+from .cloudflare import CloudflareProvider
+from .github_models import GithubModelsProvider
+from .sambanova import SambaNovaProvider
+from .chutes import ChutesProvider
+from .fireworks import FireworksProvider
+from .hyperbolic import HyperbolicProvider
+from .opencode import OpenCodeProvider
+from .deepseek import DeepSeekProvider
+from .siliconflow import SiliconFlowProvider
+from .modelscope import ModelScopeProvider
+from .zhipu import ZhipuProvider
+from .moonshot import MoonshotProvider
+from .minimax import MiniMaxProvider
+from .dashscope import DashScopeProvider
+from .hunyuan import HunyuanProvider
+from .qianfan import QianfanProvider
+from .sensenova import SenseNovaProvider
+from .stepfun import StepFunProvider
+from .lingyiwanwu import LingyiWanwuProvider
+from .volcengine import VolcengineProvider
+
 logger = logging.getLogger(__name__)
 
-# Provider registry
+# Provider map
+PROVIDER_CLASSES = {
+    "nvidia": NvidiaProvider,
+    "openai": OpenAIProvider,
+    "groq": GroqProvider,
+    "ollama": OllamaProvider,
+    "openrouter": OpenRouterProvider,
+    "google": GoogleProvider,
+    "cloudflare": CloudflareProvider,
+    "github_models": GithubModelsProvider,
+    "sambanova": SambaNovaProvider,
+    "chutes": ChutesProvider,
+    "fireworks": FireworksProvider,
+    "hyperbolic": HyperbolicProvider,
+    "opencode": OpenCodeProvider,
+    "deepseek": DeepSeekProvider,
+    "siliconflow": SiliconFlowProvider,
+    "modelscope": ModelScopeProvider,
+    "zhipu": ZhipuProvider,
+    "moonshot": MoonshotProvider,
+    "minimax": MiniMaxProvider,
+    "dashscope": DashScopeProvider,
+    "hunyuan": HunyuanProvider,
+    "qianfan": QianfanProvider,
+    "sensenova": SenseNovaProvider,
+    "stepfun": StepFunProvider,
+    "lingyiwanwu": LingyiWanwuProvider,
+    "volcengine": VolcengineProvider,
+}
+
 _providers: dict[str, LLMProvider] = {}
 
 
@@ -25,58 +81,25 @@ def init_providers():
     settings = get_settings()
     from app.services.key_manager import key_manager
 
-    # --- NVIDIA ---
-    nvidia_keys = settings.get_provider_keys("nvidia")
-    if nvidia_keys:
-        _providers["nvidia"] = NvidiaProvider()
-        rpm = settings.get_provider_rpm("nvidia")
-        key_manager.register_pool("nvidia", nvidia_keys, rpm_per_key=rpm)
-        logger.info(f"Registered provider: nvidia ({len(nvidia_keys)} key(s), {rpm} RPM/key)")
-
-    # --- OpenAI ---
-    openai_keys = settings.get_provider_keys("openai")
-    if openai_keys:
-        _providers["openai"] = OpenAIProvider()
-        rpm = settings.get_provider_rpm("openai")
-        key_manager.register_pool("openai", openai_keys, rpm_per_key=rpm)
-        logger.info(f"Registered provider: openai ({len(openai_keys)} key(s), {rpm} RPM/key)")
-
-    # --- Groq ---
-    groq_keys = settings.get_provider_keys("groq")
-    if groq_keys:
-        _providers["groq"] = GroqProvider()
-        rpm = settings.get_provider_rpm("groq")
-        key_manager.register_pool("groq", groq_keys, rpm_per_key=rpm)
-        logger.info(f"Registered provider: groq ({len(groq_keys)} key(s), {rpm} RPM/key)")
-
-    # --- Ollama ---
-    ollama_keys = settings.get_provider_keys("ollama")
-    if ollama_keys:
-        _providers["ollama"] = OllamaProvider()
-        rpm = settings.get_provider_rpm("ollama")
-        key_manager.register_pool("ollama", ollama_keys, rpm_per_key=rpm)
-        logger.info(f"Registered provider: ollama ({len(ollama_keys)} instance(s), {rpm} RPM/key)")
+    for name, provider_cls in PROVIDER_CLASSES.items():
+        keys = settings.get_provider_keys(name)
+        if keys or name in ("ollama", "nvidia", "openai"):  # initialize default/demo providers or if keys present
+            try:
+                instance = provider_cls()
+                _providers[name] = instance
+                rpm = settings.get_provider_rpm(name)
+                key_manager.register_pool(name, keys or ["default-key"], rpm_per_key=rpm)
+                register_provider_metadata(name, instance.get_metadata())
+                logger.info(f"Registered provider: {name} ({len(keys)} key(s), {rpm} RPM/key)")
+            except Exception as e:
+                logger.error(f"Failed to initialize provider '{name}': {e}")
 
     if not _providers:
-        logger.warning(
-            "No LLM providers configured! "
-            "Set NVIDIA_API_KEY(S), OPENAI_API_KEY(S), GROQ_API_KEY(S), or OLLAMA_BASE_URL in .env"
-        )
+        logger.warning("No LLM providers configured!")
 
 
 def get_provider(name: Optional[str] = None) -> LLMProvider:
-    """
-    Get a provider by name, falling back to the default.
-
-    Args:
-        name: Provider name ('nvidia', 'openai'). None uses default.
-
-    Returns:
-        LLMProvider instance.
-
-    Raises:
-        ValueError: If the requested provider is not available.
-    """
+    """Get a provider by name, falling back to default."""
     if not _providers:
         init_providers()
 
@@ -86,13 +109,10 @@ def get_provider(name: Optional[str] = None) -> LLMProvider:
     if provider_name not in _providers:
         available = list(_providers.keys())
         if available:
-            # Fall back to first available
             provider_name = available[0]
             logger.warning(f"Requested provider '{name}' not available, using '{provider_name}'")
         else:
-            raise ValueError(
-                "No LLM providers available. Configure NVIDIA_API_KEY(S) or OPENAI_API_KEY(S)."
-            )
+            raise ValueError("No LLM providers available.")
 
     return _providers[provider_name]
 

@@ -1,0 +1,14 @@
+{
+  "name": "zhipu",
+  "base_url": "https://open.bigmodel.cn/api/paas/v4",
+  "default_model": "glm-4-plus",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 128000
+  }
+}

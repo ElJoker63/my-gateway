@@ -1,0 +1,15 @@
+{
+  "name": "google",
+  "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+  "default_model": "gemini-2.0-flash",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": true,
+    "json_mode": true,
+    "max_context": 1048576
+  }
+}

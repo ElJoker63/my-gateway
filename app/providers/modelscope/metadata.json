@@ -1,0 +1,14 @@
+{
+  "name": "modelscope",
+  "base_url": "https://api-inference.modelscope.cn/v1",
+  "default_model": "Qwen/Qwen2.5-72B-Instruct",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 128000
+  }
+}

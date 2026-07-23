@@ -1,0 +1,14 @@
+{
+  "name": "fireworks",
+  "base_url": "https://api.fireworks.ai/inference/v1",
+  "default_model": "accounts/fireworks/models/llama-v3p3-70b-instruct",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 128000
+  }
+}

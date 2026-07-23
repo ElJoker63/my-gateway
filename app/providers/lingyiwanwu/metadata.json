@@ -1,0 +1,14 @@
+{
+  "name": "lingyiwanwu",
+  "base_url": "https://api.lingyiwanwu.com/v1",
+  "default_model": "yi-lightning",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": false,
+    "tool_calling": true,
+    "reasoning": false,
+    "max_context": 16000
+  }
+}

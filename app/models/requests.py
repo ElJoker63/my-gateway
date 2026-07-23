@@ -7,9 +7,32 @@ from typing import Optional
 # --- Chat Messages ---
 
 class ChatMessage(BaseModel):
-    """Single chat message in OpenAI format."""
-    role: str = Field(..., description="Message role: system, user, assistant")
-    content: str = Field(..., description="Message content")
+    """Single chat message in OpenAI format.
+
+    Accepts modern content shapes used by agents (Cursor, OpenHands, ZCode, etc.):
+      - content as plain string: "hello"
+      - content as list of typed blocks: [{"type":"text","text":"..."},
+                                           {"type":"image_url","image_url":{...}}]
+      - content as null for assistant messages carrying only tool_calls
+      - tool_calls list on assistant messages
+      - tool_call_id + name on role="tool" response messages
+    """
+    role: str = Field(..., description="Message role: system, user, assistant, tool")
+    content: Optional[str | list] = Field(
+        default=None,
+        description="Message content: string, list of content blocks, or null",
+    )
+    tool_calls: Optional[list[dict]] = Field(
+        default=None,
+        description="Assistant tool invocation list (when role='assistant')",
+    )
+    tool_call_id: Optional[str] = Field(
+        default=None,
+        description="ID of the tool call this message responds to (when role='tool')",
+    )
+    name: Optional[str] = Field(default=None, description="Optional participant name")
+
+    model_config = {"extra": "allow"}
 
 
 # --- Gateway Simplified Chat ---

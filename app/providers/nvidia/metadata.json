@@ -1,0 +1,14 @@
+{
+  "name": "nvidia",
+  "base_url": "https://integrate.api.nvidia.com/v1",
+  "default_model": "meta/llama-3.1-70b-instruct",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 128000
+  }
+}

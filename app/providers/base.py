@@ -69,6 +69,28 @@ class LLMProvider(ABC):
         """Check if the provider is reachable and configured."""
         ...
 
+    async def embeddings(
+        self,
+        input_text: str | list[str],
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        **kwargs,
+    ) -> dict:
+        """Generate text embeddings."""
+        raise NotImplementedError(f"Embeddings not implemented for provider '{self.name}'")
+
+    async def list_models(self, api_key: Optional[str] = None) -> list[dict]:
+        """Fetch available models dynamically from provider endpoint."""
+        return []
+
+    def get_metadata(self) -> dict:
+        """Return provider capabilities and metadata."""
+        return {
+            "name": getattr(self, "name", "base"),
+            "default_model": getattr(self, "default_model", ""),
+            "capabilities": getattr(self, "capabilities", {}),
+        }
+
     @staticmethod
     def _get_auth_headers(api_key: str) -> dict:
         """Build authorization headers for a request."""
@@ -90,7 +112,7 @@ class LLMProvider(ABC):
     ) -> dict:
         """Build the request payload for OpenAI-compatible APIs."""
         params = {
-            "model": model or self.default_model,
+            "model": model or getattr(self, "default_model", ""),
             "messages": messages,
         }
         if temperature is not None:
@@ -110,3 +132,4 @@ class LLMProvider(ABC):
                 params[key] = value
 
         return params
+

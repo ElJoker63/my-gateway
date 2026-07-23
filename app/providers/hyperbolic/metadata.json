@@ -1,0 +1,14 @@
+{
+  "name": "hyperbolic",
+  "base_url": "https://api.hyperbolic.xyz/v1",
+  "default_model": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": false,
+    "embeddings": false,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 128000
+  }
+}

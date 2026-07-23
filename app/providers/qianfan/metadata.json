@@ -1,0 +1,14 @@
+{
+  "name": "qianfan",
+  "base_url": "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop",
+  "default_model": "ERNIE-4.0-8K",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": false,
+    "max_context": 8192
+  }
+}

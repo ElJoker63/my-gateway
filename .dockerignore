@@ -4,7 +4,6 @@ __pycache__/
 *.egg-info/
 .git/
 .gitignore
-.env
 data/
 *.md
 tests/

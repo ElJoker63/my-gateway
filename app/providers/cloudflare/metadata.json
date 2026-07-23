@@ -1,0 +1,14 @@
+{
+  "name": "cloudflare",
+  "base_url": "https://api.cloudflare.com/client/v4/accounts",
+  "default_model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": false,
+    "embeddings": true,
+    "tool_calling": false,
+    "reasoning": false,
+    "max_context": 128000
+  }
+}

@@ -289,7 +289,16 @@ async def openai_chat_completions(
     Used by Cursor, OpenHands, and most AI coding agents.
     """
     project = request.project or x_project or "default"
-    messages = [m.model_dump() for m in request.messages]
+    # model_dump() preserves tool_calls / tool_call_id / name on each message,
+    # and model_extra carries request-level fields like tools, tool_choice,
+    # response_format, stream_options, etc.
+    messages = [m.model_dump(exclude_none=True) for m in request.messages]
+    request_extra = request.model_dump(exclude_none=True)
+    extra_kwargs = {
+        k: v
+        for k, v in request_extra.items()
+        if k in {"tools", "tool_choice", "response_format", "stream_options"}
+    }
 
     # Handle stop as list
     stop = request.stop
@@ -297,6 +306,8 @@ async def openai_chat_completions(
         stop = [stop]
 
     if request.stream:
+        # stream_options must only travel when streaming
+        extra_kwargs.pop("stream_options", None)
         return StreamingResponse(
             _process_chat_stream(
                 messages=messages,
@@ -308,6 +319,7 @@ async def openai_chat_completions(
                 max_tokens=request.max_tokens,
                 top_p=request.top_p,
                 stop=stop,
+                **extra_kwargs,
             ),
             media_type="text/event-stream",
             headers={
@@ -330,6 +342,7 @@ async def openai_chat_completions(
         max_tokens=request.max_tokens,
         top_p=request.top_p,
         stop=stop,
+        **extra_kwargs,
     )
 
     # Store conversation in memory (background)
@@ -378,7 +391,7 @@ async def anthropic_messages(
     messages = []
     if request.system:
         messages.append({"role": "system", "content": request.system})
-    messages.extend([m.model_dump() for m in request.messages])
+    messages.extend([m.model_dump(exclude_none=True) for m in request.messages])
 
     if request.stream:
         # Anthropic streaming uses a different event format,

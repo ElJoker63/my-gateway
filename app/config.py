@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     embedding_dimension: int = Field(default=384, description="Embedding vector dimension")
 
     # --- Context ---
-    max_context_tokens: int = Field(default=4000, description="Max tokens for injected context")
+    max_context_tokens: int = Field(default=4000, description="Max tokens of project memory injected into the system prompt (NOT the model's context window; GLM on NVIDIA exposes 128K)")
     memory_search_top_k: int = Field(default=10, description="Number of memory results to retrieve")
     memory_score_threshold: float = Field(default=0.5, description="Minimum relevance score for memory results")
 

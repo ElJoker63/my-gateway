@@ -1,0 +1,14 @@
+{
+  "name": "opencode",
+  "base_url": "https://api.opencode.ai/v1",
+  "default_model": "opencode-coder-70b",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": false,
+    "embeddings": false,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 128000
+  }
+}

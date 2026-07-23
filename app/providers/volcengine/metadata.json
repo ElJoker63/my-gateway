@@ -1,0 +1,14 @@
+{
+  "name": "volcengine",
+  "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+  "default_model": "doubao-pro-128k",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 128000
+  }
+}

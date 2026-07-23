@@ -1,0 +1,14 @@
+{
+  "name": "github_models",
+  "base_url": "https://models.inference.ai.azure.com",
+  "default_model": "gpt-4o",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 128000
+  }
+}

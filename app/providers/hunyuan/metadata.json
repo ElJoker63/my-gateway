@@ -1,0 +1,14 @@
+{
+  "name": "hunyuan",
+  "base_url": "https://api.hunyuan.tencent.com/v1",
+  "default_model": "hunyuan-pro",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": true,
+    "tool_calling": true,
+    "reasoning": false,
+    "max_context": 32000
+  }
+}

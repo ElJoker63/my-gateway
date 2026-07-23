@@ -1,0 +1,14 @@
+{
+  "name": "stepfun",
+  "base_url": "https://api.stepfun.com/v1",
+  "default_model": "step-2-16k",
+  "capabilities": {
+    "chat": true,
+    "streaming": true,
+    "vision": true,
+    "embeddings": false,
+    "tool_calling": true,
+    "reasoning": true,
+    "max_context": 16000
+  }
+}
