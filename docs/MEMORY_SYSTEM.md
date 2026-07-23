@@ -1,6 +1,6 @@
 # Memory System
 
-The AI Agent Gateway uses **Qdrant** as a persistent vector database to maintain project-specific memory. This enables the gateway to automatically enrich LLM requests with relevant context from your codebase and past conversations.
+**My Gateway AI** uses **Qdrant** as a persistent vector database to maintain project-specific memory. This enables the gateway to automatically enrich LLM requests with relevant context from your codebase and past conversations.
 
 ## How It Works
 

@@ -1,8 +1,8 @@
-# 🧠 AI Agent Gateway Documentation
+# 🧠 My Gateway AI Documentation
 
-Welcome to the official documentation for **AI Agent Gateway**.
+Welcome to the official documentation for **My Gateway AI**.
 
-An intelligent local gateway between AI coding agents and LLM providers. Reduces API consumption, enforces rate limits, provides persistent vector memory, and enriches requests with project context.
+An intelligent multi-provider AI gateway & orchestration platform. Connects multiple AI providers, manages API keys, handles rate limits, provides intelligent routing, caching, vector memory, and scalable AI infrastructure.
 
 ## ✨ Features
 

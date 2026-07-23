@@ -1,5 +1,5 @@
 """
-Centralized configuration for the AI Agent Gateway.
+Centralized configuration for My Gateway AI.
 All settings loaded from environment variables with sensible defaults.
 """
 

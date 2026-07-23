@@ -1,5 +1,5 @@
 """
-AI Agent Gateway — Main Application.
+My Gateway AI — Main Application.
 
 FastAPI application factory with lifespan management, middleware,
 authentication, and health checks.
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler. Initializes and cleans up resources."""
     # --- Startup ---
     logger.info("=" * 60)
-    logger.info("AI Agent Gateway starting up...")
+    logger.info("My Gateway AI starting up...")
     logger.info("=" * 60)
 
     # Initialize Redis
@@ -67,17 +67,17 @@ async def lifespan(app: FastAPI):
         logger.error(f"✗ Provider initialization failed: {e}")
 
     logger.info("=" * 60)
-    logger.info("Gateway ready on port 8000")
+    logger.info("My Gateway AI ready on port 8000")
     logger.info("=" * 60)
 
     yield  # Application runs
 
     # --- Shutdown ---
-    logger.info("Gateway shutting down...")
+    logger.info("My Gateway AI shutting down...")
     await close_providers()
     await close_redis()
     close_qdrant()
-    logger.info("Gateway shutdown complete")
+    logger.info("My Gateway AI shutdown complete")
 
 
 # =============================================================================
@@ -86,10 +86,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI Agent Gateway",
+    title="My Gateway AI",
     description=(
-        "Intelligent gateway between AI coding agents and LLM providers. "
-        "Provides caching, rate limiting, vector memory, and context enrichment."
+        "Intelligent multi-provider gateway & orchestration platform for AI coding agents and LLM providers. "
+        "Provides caching, rate limiting, vector memory, key rotation, and context enrichment."
     ),
     version="1.0.0",
     lifespan=lifespan,

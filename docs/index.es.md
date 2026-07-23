@@ -1,8 +1,8 @@
-# 🧠 Documentación de AI Agent Gateway
+# 🧠 Documentación de My Gateway AI
 
-Bienvenido a la documentación oficial de **AI Agent Gateway**.
+Bienvenido a la documentación oficial de **My Gateway AI**.
 
-Un gateway local inteligente que actúa como intermediario entre tus agentes de código y proveedores externos de LLM. Reduce el consumo de requests, administra el límite de API (rate limit), añade memoria vectorial persistente del proyecto y enriquece las peticiones con contexto relevante.
+Un gateway inteligente y plataforma de orquestación IA multi-proveedor. Conecta múltiples proveedores de IA, administra llaves de API, maneja rate limits, ofrece enrutamiento inteligente, caché, memoria vectorial e infraestructura de IA escalable.
 
 ## ✨ Características Principales
 

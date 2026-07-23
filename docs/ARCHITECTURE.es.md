@@ -2,7 +2,7 @@
 
 ## Descripción General
 
-El AI Agent Gateway es un **proxy local y middleware inteligente** que se sitúa entre los agentes de código (Cursor, OpenHands, zcode) y los proveedores externos de LLM. No es un simple repetidor HTTP: enriquece, almacena en caché, aplica rate limit por clave y contextualiza cada petición.
+**My Gateway AI** es un **proxy local y middleware inteligente** que se sitúa entre los agentes de código (Cursor, OpenHands, zcode) y los proveedores externos de LLM. No es un simple repetidor HTTP: enriquece, almacena en caché, aplica rate limit por clave y contextualiza cada petición.
 
 ## Diagrama de Arquitectura
 

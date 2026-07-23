@@ -1,6 +1,6 @@
 # Sistema de Memoria Vectorial
 
-El Gateway utiliza **Qdrant** como base de datos vectorial para almacenar y recuperar la memoria de cada proyecto de forma persistente.
+**My Gateway AI** utiliza **Qdrant** como base de datos vectorial para almacenar y recuperar la memoria de cada proyecto de forma persistente.
 
 ## Funcionamiento
 

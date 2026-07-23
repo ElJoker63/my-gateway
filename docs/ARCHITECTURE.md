@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI Agent Gateway is a **local proxy + intelligent middleware** that sits between AI coding agents and external LLM providers. It is not a simple HTTP relay — it actively enriches, caches, rate-limits, and contextualizes every request.
+**My Gateway AI** is a **local proxy + intelligent middleware platform** that sits between AI coding agents and external LLM providers. It is not a simple HTTP relay — it actively enriches, caches, rate-limits, and contextualizes every request.
 
 ## System Architecture
 
