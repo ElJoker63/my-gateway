@@ -21,10 +21,15 @@ class LLMProvider(ABC):
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         stop: Optional[list[str]] = None,
+        api_key: Optional[str] = None,
         **kwargs,
     ) -> dict:
         """
         Send a chat completion request and return the full response.
+
+        Args:
+            api_key: Override API key for this request (from KeyManager).
+                     If None, uses the provider's default key.
 
         Returns dict with keys:
             - content: str (assistant response text)
@@ -43,10 +48,14 @@ class LLMProvider(ABC):
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         stop: Optional[list[str]] = None,
+        api_key: Optional[str] = None,
         **kwargs,
     ) -> AsyncIterator[dict]:
         """
         Send a streaming chat completion request.
+
+        Args:
+            api_key: Override API key for this request (from KeyManager).
 
         Yields dicts with keys:
             - content: str (delta text)
@@ -59,6 +68,14 @@ class LLMProvider(ABC):
     async def health_check(self) -> bool:
         """Check if the provider is reachable and configured."""
         ...
+
+    @staticmethod
+    def _get_auth_headers(api_key: str) -> dict:
+        """Build authorization headers for a request."""
+        return {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
 
     def _build_params(
         self,

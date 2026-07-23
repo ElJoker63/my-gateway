@@ -38,7 +38,7 @@ from app.models.responses import (
 )
 from app.providers import get_provider
 from app.services.cache import get_cached_response, set_cached_response
-from app.services.rate_limit import rate_limiter
+from app.services.key_manager import key_manager
 from app.services.context import build_context
 from app.services.memory import store_memory
 
@@ -49,6 +49,73 @@ router = APIRouter()
 # =============================================================================
 # Core Chat Logic
 # =============================================================================
+
+
+async def _call_with_fallback(
+    provider,
+    messages: list[dict],
+    model: str,
+    key_info,
+    max_retries: int = 3,
+    **kwargs,
+) -> dict:
+    """
+    Call provider.chat() with the acquired key.
+    On rate limit (429) or auth error, report the key and retry with next available.
+    """
+    import httpx
+    from app.services.key_manager import key_manager
+
+    last_error = None
+    current_key = key_info
+
+    for attempt in range(max_retries):
+        try:
+            result = await provider.chat(
+                messages=messages,
+                model=model,
+                api_key=current_key.key,
+                **kwargs,
+            )
+            return result
+
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            last_error = e
+
+            if status == 429:
+                error_type = "rate_limit"
+            elif status in (401, 403):
+                error_type = "auth_error"
+            else:
+                # Non-retryable HTTP error
+                logger.error(f"LLM call failed (HTTP {status}): {e}")
+                raise HTTPException(status_code=502, detail=f"LLM provider error: {str(e)}")
+
+            logger.warning(
+                f"Key {current_key.key_id} got {status} ({error_type}), "
+                f"attempting fallback (attempt {attempt + 1}/{max_retries})"
+            )
+            await key_manager.report_error(provider.name, current_key.key_id, error_type)
+
+            # Try to get another key
+            try:
+                current_key = await key_manager.acquire_key(provider.name)
+            except (TimeoutError, RuntimeError) as acquire_err:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"All keys exhausted after fallback: {acquire_err}"
+                )
+
+        except Exception as e:
+            logger.error(f"LLM call failed: {e}")
+            raise HTTPException(status_code=502, detail=f"LLM provider error: {str(e)}")
+
+    # All retries exhausted
+    raise HTTPException(
+        status_code=502,
+        detail=f"LLM call failed after {max_retries} attempts: {last_error}"
+    )
 
 
 async def _process_chat(
@@ -93,28 +160,26 @@ async def _process_chat(
     # --- Step 2: Build context from memory ---
     enriched_messages = await build_context(messages, project, use_memory)
 
-    # --- Step 3: Enforce rate limit ---
+    # --- Step 3: Acquire key (handles rate limiting + rotation) ---
     try:
-        rate_info = await rate_limiter.wait_if_needed(provider.name)
-        if rate_info.get("waited_seconds", 0) > 0:
-            logger.info(f"Rate limit wait: {rate_info['waited_seconds']:.1f}s")
+        key_info = await key_manager.acquire_key(provider.name)
     except TimeoutError as e:
         raise HTTPException(status_code=429, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
-    # --- Step 4: Call LLM provider ---
-    try:
-        result = await provider.chat(
-            messages=enriched_messages,
-            model=model_name,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            stop=stop,
-            **kwargs,
-        )
-    except Exception as e:
-        logger.error(f"LLM call failed: {e}")
-        raise HTTPException(status_code=502, detail=f"LLM provider error: {str(e)}")
+    # --- Step 4: Call LLM provider with acquired key (+ fallback) ---
+    result = await _call_with_fallback(
+        provider=provider,
+        messages=enriched_messages,
+        model=model_name,
+        key_info=key_info,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        stop=stop,
+        **kwargs,
+    )
 
     # --- Step 5: Cache response ---
     if use_cache:
@@ -160,16 +225,15 @@ async def _process_chat_stream(
     # Build context
     enriched_messages = await build_context(messages, project, use_memory)
 
-    # Rate limit
+    # Acquire key
     try:
-        await rate_limiter.wait_if_needed(provider.name)
-    except TimeoutError as e:
-        # For streaming, yield an error event
+        key_info = await key_manager.acquire_key(provider.name)
+    except (TimeoutError, RuntimeError) as e:
         error_data = json.dumps({"error": {"message": str(e), "type": "rate_limit_error"}})
         yield f"data: {error_data}\n\n"
         return
 
-    # Stream from provider
+    # Stream from provider with acquired key
     chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
     created = int(time.time())
 
@@ -181,6 +245,7 @@ async def _process_chat_stream(
             max_tokens=max_tokens,
             top_p=top_p,
             stop=stop,
+            api_key=key_info.key,
             **kwargs,
         ):
             sse_chunk = OpenAIStreamChunk(

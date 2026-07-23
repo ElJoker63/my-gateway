@@ -5,10 +5,11 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 ## ✨ Features
 
 - **Multi-Agent Compatible** — Works with Cursor, OpenHands, zcode, and any OpenAI-compatible agent
+- **Multi-API Key Pool & Rotation** — Support multiple API keys per provider with automatic load balancing, per-key rate limiting, and failure fallback
 - **Three API Formats** — `/v1/chat/completions`, `/v1/messages`, `/api/chat`
 - **SSE Streaming** — Real-time streaming support for all chat endpoints
 - **Intelligent Cache** — SHA-256 semantic hashing with Redis, avoids repeated API calls
-- **Rate Limiting** — Sliding window limiter with auto-queue (never hit provider limits)
+- **Rate Limiting** — Sliding window per-key limiter with auto-queue (never hit provider limits)
 - **Vector Memory** — Per-project persistent memory using Qdrant
 - **Context Enrichment** — Automatically injects relevant project context into LLM requests
 - **Project Indexing** — Scan and index entire codebases for memory

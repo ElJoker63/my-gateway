@@ -199,18 +199,35 @@ async def health_check():
 
 
 # =============================================================================
-# Rate Limit Status
+# Key Pool Status
+# =============================================================================
+
+
+@app.get("/api/keys/status", tags=["System"])
+async def key_pool_status(provider: Optional[str] = None):
+    """
+    Get API key pool status for a provider or all providers.
+    Shows per-key usage, rate limits, and availability.
+    """
+    from app.services.key_manager import key_manager
+
+    if provider:
+        return await key_manager.get_pool_status(provider)
+    return await key_manager.get_all_pools_status()
+
+
+# =============================================================================
+# Rate Limit Status (legacy — delegates to key manager)
 # =============================================================================
 
 
 @app.get("/api/rate-limit", tags=["System"])
 async def rate_limit_status(provider: Optional[str] = None):
-    """Get current rate limit status."""
-    from app.services.rate_limit import rate_limiter
+    """Get current rate limit status (per-key breakdown)."""
+    from app.services.key_manager import key_manager
 
     provider_name = provider or settings.default_provider
-    status = await rate_limiter.get_status(provider_name)
-    return status
+    return await key_manager.get_pool_status(provider_name)
 
 
 # =============================================================================

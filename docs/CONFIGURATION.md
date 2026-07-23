@@ -17,7 +17,8 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NVIDIA_API_KEY` | *(empty)* | Your NVIDIA API key (required if using NVIDIA) |
+| `NVIDIA_API_KEY` | *(empty)* | Single NVIDIA API key (backward compatible) |
+| `NVIDIA_API_KEYS` | `[]` | JSON array of API keys, e.g. `["key1", "key2"]` (overrides single key if present) |
 | `NVIDIA_MODEL` | `meta/llama-3.1-70b-instruct` | Default model |
 | `NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | API base URL |
 
@@ -25,9 +26,18 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENAI_API_KEY` | *(empty)* | Your OpenAI API key |
+| `OPENAI_API_KEY` | *(empty)* | Single OpenAI API key |
+| `OPENAI_API_KEYS` | `[]` | JSON array of API keys, e.g. `["sk-key1", "sk-key2"]` |
 | `OPENAI_MODEL` | `gpt-4o` | Default model |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | API base URL (change for compatible APIs) |
+
+### Key Management & Rotation
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KEY_SELECTION_STRATEGY` | `least_used` | Key rotation strategy: `least_used` (load balancing) or `round_robin` |
+| `KEY_RPM_LIMIT` | `0` | RPM limit per key (0 = inherits `MAX_REQUESTS_PER_MINUTE`) |
+| `KEY_ERROR_COOLDOWN` | `60` | Cooldown period in seconds for a key after a rate limit (429) or auth error |
 
 ### Provider Selection
 

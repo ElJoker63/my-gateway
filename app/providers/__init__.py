@@ -1,6 +1,6 @@
 """
 LLM Provider registry and factory.
-Manages provider instances and provides a get_provider() accessor.
+Manages provider instances and registers key pools with the KeyManager.
 """
 
 import logging
@@ -18,22 +18,30 @@ _providers: dict[str, LLMProvider] = {}
 
 
 def init_providers():
-    """Initialize all configured providers."""
+    """Initialize all configured providers and register their key pools."""
     global _providers
     settings = get_settings()
+    from app.services.key_manager import key_manager
 
-    # Always register NVIDIA if key is configured
-    if settings.nvidia_api_key:
+    # --- NVIDIA ---
+    nvidia_keys = settings.get_provider_keys("nvidia")
+    if nvidia_keys:
         _providers["nvidia"] = NvidiaProvider()
-        logger.info("Registered provider: nvidia")
+        key_manager.register_pool("nvidia", nvidia_keys)
+        logger.info(f"Registered provider: nvidia ({len(nvidia_keys)} key(s))")
 
-    # Always register OpenAI if key is configured
-    if settings.openai_api_key:
+    # --- OpenAI ---
+    openai_keys = settings.get_provider_keys("openai")
+    if openai_keys:
         _providers["openai"] = OpenAIProvider()
-        logger.info("Registered provider: openai")
+        key_manager.register_pool("openai", openai_keys)
+        logger.info(f"Registered provider: openai ({len(openai_keys)} key(s))")
 
     if not _providers:
-        logger.warning("No LLM providers configured! Set NVIDIA_API_KEY or OPENAI_API_KEY in .env")
+        logger.warning(
+            "No LLM providers configured! "
+            "Set NVIDIA_API_KEY/NVIDIA_API_KEYS or OPENAI_API_KEY/OPENAI_API_KEYS in .env"
+        )
 
 
 def get_provider(name: Optional[str] = None) -> LLMProvider:
@@ -63,7 +71,7 @@ def get_provider(name: Optional[str] = None) -> LLMProvider:
             logger.warning(f"Requested provider '{name}' not available, using '{provider_name}'")
         else:
             raise ValueError(
-                "No LLM providers available. Configure NVIDIA_API_KEY or OPENAI_API_KEY."
+                "No LLM providers available. Configure NVIDIA_API_KEY(S) or OPENAI_API_KEY(S)."
             )
 
     return _providers[provider_name]
