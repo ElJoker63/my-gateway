@@ -1,4 +1,8 @@
-# 🧠 AI Agent Gateway
+<p align="center">
+  <img src="docs/assets/banner.png" alt="My Gateway AI Banner" width="100%">
+</p>
+
+# 🧠 MY GATEWAY AI
 
 An intelligent local gateway between AI coding agents and LLM providers. Reduces API consumption, enforces rate limits, provides persistent vector memory, and enriches requests with project context.
 
