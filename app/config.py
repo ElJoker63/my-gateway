@@ -25,12 +25,28 @@ class Settings(BaseSettings):
     nvidia_api_keys: list[str] = Field(default=[], description="Pool of NVIDIA API keys (JSON array)")
     nvidia_model: str = Field(default="meta/llama-3.1-70b-instruct", description="Default NVIDIA model")
     nvidia_base_url: str = Field(default="https://integrate.api.nvidia.com/v1", description="NVIDIA API base URL")
+    nvidia_rpm_limit: int = Field(default=0, description="RPM limit per key for NVIDIA (0 = inherit default)")
 
     # --- OpenAI Provider ---
     openai_api_key: str = Field(default="", description="OpenAI API key (single key, backward compat)")
     openai_api_keys: list[str] = Field(default=[], description="Pool of OpenAI API keys (JSON array)")
     openai_model: str = Field(default="gpt-4o", description="Default OpenAI model")
     openai_base_url: str = Field(default="https://api.openai.com/v1", description="OpenAI API base URL")
+    openai_rpm_limit: int = Field(default=0, description="RPM limit per key for OpenAI (0 = inherit default)")
+
+    # --- Groq Provider ---
+    groq_api_key: str = Field(default="", description="Groq API key (single key, backward compat)")
+    groq_api_keys: list[str] = Field(default=[], description="Pool of Groq API keys (JSON array)")
+    groq_model: str = Field(default="llama-3.3-70b-versatile", description="Default Groq model")
+    groq_base_url: str = Field(default="https://api.groq.com/openai/v1", description="Groq API base URL")
+    groq_rpm_limit: int = Field(default=0, description="RPM limit per key for Groq (0 = inherit default)")
+
+    # --- Ollama Cloud / Remote Provider ---
+    ollama_api_key: str = Field(default="", description="Ollama Cloud API key (single key)")
+    ollama_api_keys: list[str] = Field(default=[], description="Pool of Ollama Cloud API keys (JSON array)")
+    ollama_model: str = Field(default="llama3.1", description="Default Ollama Cloud model")
+    ollama_base_url: str = Field(default="https://ollama.com/v1", description="Ollama Cloud / Remote API base URL")
+    ollama_rpm_limit: int = Field(default=0, description="RPM limit per key for Ollama Cloud (0 = inherit default)")
 
     # --- Key Management ---
     key_selection_strategy: str = Field(
@@ -94,7 +110,7 @@ class Settings(BaseSettings):
     # --- Request Limits ---
     max_request_size_mb: int = Field(default=10, description="Max request body size in MB")
 
-    @field_validator("nvidia_api_keys", "openai_api_keys", mode="before")
+    @field_validator("nvidia_api_keys", "openai_api_keys", "groq_api_keys", "ollama_api_keys", mode="before")
     @classmethod
     def parse_api_keys(cls, v):
         """Parse API keys from JSON string or list."""
@@ -131,6 +147,21 @@ class Settings(BaseSettings):
             return [single_key]
 
         return []
+
+    def get_provider_rpm(self, provider: str) -> int:
+        """
+        Get the RPM limit per key for a specific provider.
+        Precedence:
+        1. {provider}_rpm_limit (e.g. nvidia_rpm_limit)
+        2. key_rpm_limit
+        3. max_requests_per_minute
+        """
+        provider_limit = getattr(self, f"{provider.lower()}_rpm_limit", 0)
+        if provider_limit > 0:
+            return provider_limit
+        if self.key_rpm_limit > 0:
+            return self.key_rpm_limit
+        return self.max_requests_per_minute
 
     model_config = {
         "env_file": ".env",

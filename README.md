@@ -13,7 +13,7 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 - **Vector Memory** — Per-project persistent memory using Qdrant
 - **Context Enrichment** — Automatically injects relevant project context into LLM requests
 - **Project Indexing** — Scan and index entire codebases for memory
-- **Multi-Provider** — NVIDIA API + OpenAI-compatible, easily extensible
+- **Multi-Provider** — NVIDIA API, OpenAI-compatible, Groq, Ollama Cloud (and remote instances), easily extensible
 - **Dockerized** — One command to run everything
 
 ## 🏗️ Architecture

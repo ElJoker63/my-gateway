@@ -31,12 +31,34 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 | `OPENAI_MODEL` | `gpt-4o` | Default model |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | API base URL (change for compatible APIs) |
 
-### Key Management & Rotation
+### Groq Provider
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `GROQ_API_KEY` | *(empty)* | Single Groq API key |
+| `GROQ_API_KEYS` | `[]` | JSON array of API keys, e.g. `["gsk_key1", "gsk_key2"]` |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Default model |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Groq API base URL |
+| `GROQ_RPM_LIMIT` | `0` | Per-key RPM limit for Groq (0 = inherits `MAX_REQUESTS_PER_MINUTE`) |
+
+### Ollama Cloud / Remote Provider
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OLLAMA_API_KEY` | *(empty)* | Single Ollama Cloud API key |
+| `OLLAMA_API_KEYS` | `[]` | JSON array of API keys for key pool rotation |
+| `OLLAMA_BASE_URL` | `https://ollama.com/v1` | Ollama Cloud / Remote API base URL |
+| `OLLAMA_MODEL` | `llama3.1` | Default cloud model (e.g. `llama3.1`, `qwen2.5-coder`, `mistral`, `deepseek-r1`) |
+| `OLLAMA_RPM_LIMIT` | `0` | Per-key RPM limit for Ollama Cloud (0 = inherits `MAX_REQUESTS_PER_MINUTE`) |
+
+### Key Management & Rate Limits
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_REQUESTS_PER_MINUTE` | `35` | Global default RPM limit per key |
+| `NVIDIA_RPM_LIMIT` | `0` | Per-key RPM limit for NVIDIA (0 = inherits `MAX_REQUESTS_PER_MINUTE`) |
+| `OPENAI_RPM_LIMIT` | `0` | Per-key RPM limit for OpenAI (0 = inherits `MAX_REQUESTS_PER_MINUTE`) |
 | `KEY_SELECTION_STRATEGY` | `least_used` | Key rotation strategy: `least_used` (load balancing) or `round_robin` |
-| `KEY_RPM_LIMIT` | `0` | RPM limit per key (0 = inherits `MAX_REQUESTS_PER_MINUTE`) |
 | `KEY_ERROR_COOLDOWN` | `60` | Cooldown period in seconds for a key after a rate limit (429) or auth error |
 
 ### Provider Selection

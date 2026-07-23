@@ -10,6 +10,8 @@ from app.config import get_settings
 from .base import LLMProvider
 from .nvidia import NvidiaProvider
 from .openai import OpenAIProvider
+from .groq import GroqProvider
+from .ollama import OllamaProvider
 
 logger = logging.getLogger(__name__)
 
@@ -27,20 +29,38 @@ def init_providers():
     nvidia_keys = settings.get_provider_keys("nvidia")
     if nvidia_keys:
         _providers["nvidia"] = NvidiaProvider()
-        key_manager.register_pool("nvidia", nvidia_keys)
-        logger.info(f"Registered provider: nvidia ({len(nvidia_keys)} key(s))")
+        rpm = settings.get_provider_rpm("nvidia")
+        key_manager.register_pool("nvidia", nvidia_keys, rpm_per_key=rpm)
+        logger.info(f"Registered provider: nvidia ({len(nvidia_keys)} key(s), {rpm} RPM/key)")
 
     # --- OpenAI ---
     openai_keys = settings.get_provider_keys("openai")
     if openai_keys:
         _providers["openai"] = OpenAIProvider()
-        key_manager.register_pool("openai", openai_keys)
-        logger.info(f"Registered provider: openai ({len(openai_keys)} key(s))")
+        rpm = settings.get_provider_rpm("openai")
+        key_manager.register_pool("openai", openai_keys, rpm_per_key=rpm)
+        logger.info(f"Registered provider: openai ({len(openai_keys)} key(s), {rpm} RPM/key)")
+
+    # --- Groq ---
+    groq_keys = settings.get_provider_keys("groq")
+    if groq_keys:
+        _providers["groq"] = GroqProvider()
+        rpm = settings.get_provider_rpm("groq")
+        key_manager.register_pool("groq", groq_keys, rpm_per_key=rpm)
+        logger.info(f"Registered provider: groq ({len(groq_keys)} key(s), {rpm} RPM/key)")
+
+    # --- Ollama ---
+    ollama_keys = settings.get_provider_keys("ollama")
+    if ollama_keys:
+        _providers["ollama"] = OllamaProvider()
+        rpm = settings.get_provider_rpm("ollama")
+        key_manager.register_pool("ollama", ollama_keys, rpm_per_key=rpm)
+        logger.info(f"Registered provider: ollama ({len(ollama_keys)} instance(s), {rpm} RPM/key)")
 
     if not _providers:
         logger.warning(
             "No LLM providers configured! "
-            "Set NVIDIA_API_KEY/NVIDIA_API_KEYS or OPENAI_API_KEY/OPENAI_API_KEYS in .env"
+            "Set NVIDIA_API_KEY(S), OPENAI_API_KEY(S), GROQ_API_KEY(S), or OLLAMA_BASE_URL in .env"
         )
 
 
