@@ -1,0 +1,68 @@
+site_name: AI Agent Gateway Documentation
+site_description: Intelligent Gateway between AI Coding Agents and LLM Providers
+site_author: ElJoker63
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.expand
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - i18n:
+      default_language: en
+      languages:
+        en:
+          name: English
+          build: true
+        es:
+          name: Español
+          build: true
+      nav_translations:
+        es:
+          Overview: Visión General
+          Architecture: Arquitectura
+          API Reference: Referencia de API
+          Configuration: Configuración
+          Memory System: Sistema de Memoria
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.def_mermaid
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+
+nav:
+  - Overview: index.md
+  - Architecture: ARCHITECTURE.md
+  - API Reference: API.md
+  - Configuration: CONFIGURATION.md
+  - Memory System: MEMORY_SYSTEM.md
