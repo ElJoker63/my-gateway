@@ -28,21 +28,14 @@ theme:
 plugins:
   - search
   - i18n:
-      default_language: en
       languages:
-        en:
+        - locale: en
+          default: true
           name: English
           build: true
-        es:
+        - locale: es
           name: Español
           build: true
-      nav_translations:
-        es:
-          Overview: Visión General
-          Architecture: Arquitectura
-          API Reference: Referencia de API
-          Configuration: Configuración
-          Memory System: Sistema de Memoria
 
 markdown_extensions:
   - admonition
