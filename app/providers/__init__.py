@@ -83,19 +83,19 @@ def init_providers():
 
     for name, provider_cls in PROVIDER_CLASSES.items():
         keys = settings.get_provider_keys(name)
-        if keys or name in ("ollama", "nvidia", "openai"):  # initialize default/demo providers or if keys present
-            try:
-                instance = provider_cls()
-                _providers[name] = instance
-                rpm = settings.get_provider_rpm(name)
-                key_manager.register_pool(name, keys or ["default-key"], rpm_per_key=rpm)
-                register_provider_metadata(name, instance.get_metadata())
-                logger.info(f"Registered provider: {name} ({len(keys)} key(s), {rpm} RPM/key)")
-            except Exception as e:
-                logger.error(f"Failed to initialize provider '{name}': {e}")
+        try:
+            instance = provider_cls()
+            _providers[name] = instance
+            rpm = settings.get_provider_rpm(name)
+            key_manager.register_pool(name, keys if keys else ["default-key"], rpm_per_key=rpm)
+            register_provider_metadata(name, instance.get_metadata())
+            logger.info(f"Registered provider: {name} ({len(keys)} key(s), {rpm} RPM/key)")
+        except Exception as e:
+            logger.error(f"Failed to initialize provider '{name}': {e}")
 
     if not _providers:
         logger.warning("No LLM providers configured!")
+
 
 
 def get_provider(name: Optional[str] = None) -> LLMProvider:
