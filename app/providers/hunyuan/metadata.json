@@ -1,7 +1,7 @@
 {
   "name": "hunyuan",
-  "base_url": "https://api.hunyuan.tencent.com/v1",
-  "default_model": "hunyuan-pro",
+  "base_url": "https://api.hunyuan.cloud.tencent.com/v1",
+  "default_model": "hunyuan-turbos-latest",
   "capabilities": {
     "chat": true,
     "streaming": true,

@@ -87,6 +87,9 @@ def init_providers():
             # Inject the first pool key as the provider's default — the KeyManager
             # may still override per-request via the api_key parameter.
             instance = provider_cls(api_key=keys[0] if keys else "")
+            if not getattr(instance, "base_url", ""):
+                logger.info(f"Skipping provider '{name}': no base_url configured")
+                continue
             _providers[name] = instance
             rpm = settings.get_provider_rpm(name)
             key_manager.register_pool(name, keys if keys else [], rpm_per_key=rpm)

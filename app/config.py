@@ -154,32 +154,56 @@ class Settings(BaseSettings):
     def get_provider_keys(self, provider: str) -> list[str]:
         """
         Get the merged key list for a provider.
-        Uses *_api_keys pool if available, falls back to singular *_api_key.
+
+        Resolution order:
+        1. Typed fields on Settings ({p}_api_keys / {p}_api_key) — where declared.
+        2. Direct env var read ({PROVIDER}_API_KEYS / {PROVIDER}_API_KEY) — so all
+           24 providers work even without a dedicated typed field.
         """
-        keys_attr = f"{provider}_api_keys"
-        key_attr = f"{provider}_api_key"
+        key = provider.lower()
 
-        keys = getattr(self, keys_attr, [])
+        keys = getattr(self, f"{key}_api_keys", None)
         if keys:
-            return keys
+            return list(keys)
 
-        single_key = getattr(self, key_attr, "")
-        if single_key:
-            return [single_key]
+        single = getattr(self, f"{key}_api_key", "")
+        if single:
+            return [single]
 
-        return []
+        # Fallback for providers without typed Settings fields
+        import os
+        env_keys = os.environ.get(f"{key.upper()}_API_KEYS")
+        if env_keys:
+            parsed = self.parse_api_keys(env_keys)
+            if parsed:
+                return parsed
+        env_key = os.environ.get(f"{key.upper()}_API_KEY", "")
+        return [env_key] if env_key else []
 
     def get_provider_rpm(self, provider: str) -> int:
         """
         Get the RPM limit per key for a specific provider.
         Precedence:
-        1. {provider}_rpm_limit (e.g. nvidia_rpm_limit)
+        1. {provider}_rpm_limit typed field or {PROVIDER}_RPM_LIMIT env var
         2. key_rpm_limit
         3. max_requests_per_minute
         """
-        provider_limit = getattr(self, f"{provider.lower()}_rpm_limit", 0)
-        if provider_limit > 0:
+        key = provider.lower()
+        provider_limit = getattr(self, f"{key}_rpm_limit", 0)
+        if provider_limit and provider_limit > 0:
             return provider_limit
+
+        # Fallback: env var for providers without a typed field
+        import os
+        env_rpm = os.environ.get(f"{key.upper()}_RPM_LIMIT", "")
+        if env_rpm:
+            try:
+                value = int(env_rpm)
+                if value > 0:
+                    return value
+            except ValueError:
+                pass
+
         if self.key_rpm_limit > 0:
             return self.key_rpm_limit
         return self.max_requests_per_minute

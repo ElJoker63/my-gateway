@@ -1,7 +1,7 @@
 {
   "name": "qianfan",
-  "base_url": "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop",
-  "default_model": "ERNIE-4.0-8K",
+  "base_url": "https://qianfan.baidubce.com/v2",
+  "default_model": "ernie-4.0-8k-latest",
   "capabilities": {
     "chat": true,
     "streaming": true,
