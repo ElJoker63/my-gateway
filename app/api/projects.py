@@ -4,10 +4,12 @@ Project indexing, listing, and management.
 """
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
+from app.config import get_settings
 from app.models.requests import ProjectIndexRequest
 from app.models.responses import ProjectInfoResponse
 from app.services.memory import (
@@ -21,6 +23,43 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _resolve_allowed_path(raw_path: str) -> Path:
+    """
+    Resolve and validate a directory path against the allowed index roots.
+
+    Raises HTTPException 403 when the path escapes every configured root,
+    400 when it does not exist or is not a directory.
+    """
+    settings = get_settings()
+    roots = settings.allowed_index_roots
+
+    if not roots:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Project indexing is disabled: configure ALLOWED_INDEX_ROOTS "
+                "with the directories the gateway is allowed to scan."
+            ),
+        )
+
+    resolved = Path(raw_path).expanduser().resolve()
+    allowed = any(
+        resolved == root or root in resolved.parents
+        for root in (Path(r).expanduser().resolve() for r in roots)
+    )
+    if not allowed:
+        logger.warning(f"Rejected indexing attempt outside allowed roots: {raw_path}")
+        raise HTTPException(
+            status_code=403,
+            detail="Path is outside the allowed index roots.",
+        )
+
+    if not resolved.is_dir():
+        raise HTTPException(status_code=400, detail="Directory not found or not a directory.")
+
+    return resolved
+
+
 @router.post("/index", tags=["Projects"])
 async def index_project(
     request: ProjectIndexRequest,
@@ -31,21 +70,14 @@ async def index_project(
     Scans files, creates embeddings, and stores in Qdrant.
     Runs as a background task.
     """
-    import os
+    resolved = _resolve_allowed_path(request.path)
 
-    path = request.path
-    if not os.path.isdir(path):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Directory not found: {path}"
-        )
-
-    project_name = request.project_name or os.path.basename(path)
+    project_name = request.project_name or resolved.name
 
     # Start indexing in background
     background_tasks.add_task(
         index_project_task,
-        path=path,
+        path=str(resolved),
         project_name=project_name,
         file_patterns=request.file_patterns,
     )
@@ -53,7 +85,7 @@ async def index_project(
     return {
         "status": "indexing_started",
         "project": project_name,
-        "path": path,
+        "path": str(resolved),
         "message": f"Project '{project_name}' indexing started in background.",
     }
 

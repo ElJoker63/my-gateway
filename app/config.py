@@ -4,9 +4,9 @@ All settings loaded from environment variables with sensible defaults.
 """
 
 import json
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 from pydantic import Field, field_validator
 from functools import lru_cache
 
@@ -15,35 +15,44 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # --- Gateway ---
-    gateway_api_key: str = Field(default="change-me-to-a-secure-key", description="API key for gateway authentication")
+    gateway_api_key: str = Field(default="", description="API key for gateway authentication (empty = auth disabled, NOT for production)")
     log_level: str = Field(default="INFO", description="Logging level")
     gateway_host: str = Field(default="0.0.0.0", description="Host to bind the gateway")
     gateway_port: int = Field(default=8000, description="Port to bind the gateway")
+    cors_allowed_origins: str = Field(
+        default="http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000",
+        description="Comma-separated list of allowed CORS origins",
+    )
+
+    @property
+    def auth_enabled(self) -> bool:
+        """Authentication is enabled only when a real gateway key is configured."""
+        return bool(self.gateway_api_key) and self.gateway_api_key != "change-me-to-a-secure-key"
 
     # --- NVIDIA Provider ---
     nvidia_api_key: str = Field(default="", description="NVIDIA API key (single key, backward compat)")
-    nvidia_api_keys: list[str] = Field(default=[], description="Pool of NVIDIA API keys (JSON array)")
+    nvidia_api_keys: Annotated[list[str], NoDecode] = Field(default=[], description="Pool of NVIDIA API keys (JSON array or comma-separated)")
     nvidia_model: str = Field(default="meta/llama-3.1-70b-instruct", description="Default NVIDIA model")
     nvidia_base_url: str = Field(default="https://integrate.api.nvidia.com/v1", description="NVIDIA API base URL")
     nvidia_rpm_limit: int = Field(default=0, description="RPM limit per key for NVIDIA (0 = inherit default)")
 
     # --- OpenAI Provider ---
     openai_api_key: str = Field(default="", description="OpenAI API key (single key, backward compat)")
-    openai_api_keys: list[str] = Field(default=[], description="Pool of OpenAI API keys (JSON array)")
+    openai_api_keys: Annotated[list[str], NoDecode] = Field(default=[], description="Pool of OpenAI API keys (JSON array or comma-separated)")
     openai_model: str = Field(default="gpt-4o", description="Default OpenAI model")
     openai_base_url: str = Field(default="https://api.openai.com/v1", description="OpenAI API base URL")
     openai_rpm_limit: int = Field(default=0, description="RPM limit per key for OpenAI (0 = inherit default)")
 
     # --- Groq Provider ---
     groq_api_key: str = Field(default="", description="Groq API key (single key, backward compat)")
-    groq_api_keys: list[str] = Field(default=[], description="Pool of Groq API keys (JSON array)")
+    groq_api_keys: Annotated[list[str], NoDecode] = Field(default=[], description="Pool of Groq API keys (JSON array or comma-separated)")
     groq_model: str = Field(default="llama-3.3-70b-versatile", description="Default Groq model")
     groq_base_url: str = Field(default="https://api.groq.com/openai/v1", description="Groq API base URL")
     groq_rpm_limit: int = Field(default=0, description="RPM limit per key for Groq (0 = inherit default)")
 
     # --- Ollama Cloud / Remote Provider ---
     ollama_api_key: str = Field(default="", description="Ollama Cloud API key (single key)")
-    ollama_api_keys: list[str] = Field(default=[], description="Pool of Ollama Cloud API keys (JSON array)")
+    ollama_api_keys: Annotated[list[str], NoDecode] = Field(default=[], description="Pool of Ollama Cloud API keys (JSON array or comma-separated)")
     ollama_model: str = Field(default="llama3.1", description="Default Ollama Cloud model")
     ollama_base_url: str = Field(default="https://ollama.com/v1", description="Ollama Cloud / Remote API base URL")
     ollama_rpm_limit: int = Field(default=0, description="RPM limit per key for Ollama Cloud (0 = inherit default)")
@@ -106,11 +115,22 @@ class Settings(BaseSettings):
         description="Patterns to ignore during project indexing"
     )
     max_file_size_kb: int = Field(default=500, description="Max file size in KB to index")
+    allowed_index_roots: Annotated[list[str], NoDecode] = Field(
+        default=[],
+        description=(
+            "Root directories the indexing API is allowed to read (JSON array or comma-separated). "
+            "Any path outside these roots is rejected. Empty = indexing endpoint disabled."
+        ),
+    )
 
     # --- Request Limits ---
     max_request_size_mb: int = Field(default=10, description="Max request body size in MB")
 
-    @field_validator("nvidia_api_keys", "openai_api_keys", "groq_api_keys", "ollama_api_keys", mode="before")
+    @field_validator(
+        "nvidia_api_keys", "openai_api_keys", "groq_api_keys", "ollama_api_keys",
+        "index_ignore_patterns", "allowed_index_roots",
+        mode="before",
+    )
     @classmethod
     def parse_api_keys(cls, v):
         """Parse API keys from JSON string or list."""

@@ -39,10 +39,10 @@ class ChatMessage(BaseModel):
 
 class GatewayChatRequest(BaseModel):
     """Simplified gateway chat request."""
-    project: str = Field(default="default", description="Project name for context/memory")
-    message: str = Field(..., description="User message text")
-    provider: Optional[str] = Field(default=None, description="LLM provider override (nvidia, openai)")
-    model: Optional[str] = Field(default=None, description="Model override")
+    project: str = Field(default="default", max_length=128, description="Project name for context/memory")
+    message: str = Field(..., min_length=1, max_length=1_000_000, description="User message text")
+    provider: Optional[str] = Field(default=None, max_length=64, description="LLM provider to use")
+    model: Optional[str] = Field(default=None, max_length=256, description="Model override")
     use_memory: bool = Field(default=True, description="Whether to search and inject memory context")
     use_cache: bool = Field(default=True, description="Whether to check/store cache")
 
@@ -51,8 +51,8 @@ class GatewayChatRequest(BaseModel):
 
 class OpenAIChatRequest(BaseModel):
     """OpenAI-compatible chat completion request."""
-    model: str = Field(..., description="Model identifier")
-    messages: list[ChatMessage] = Field(..., description="Conversation messages")
+    model: str = Field(..., max_length=256, description="Model identifier")
+    messages: list[ChatMessage] = Field(..., min_length=1, max_length=10_000, description="Conversation messages")
     temperature: Optional[float] = Field(default=None, ge=0, le=2)
     top_p: Optional[float] = Field(default=None, ge=0, le=1)
     max_tokens: Optional[int] = Field(default=None, gt=0)
@@ -104,8 +104,8 @@ class AnthropicMessageRequest(BaseModel):
 
 class MemoryStoreRequest(BaseModel):
     """Request to store a memory entry."""
-    text: str = Field(..., description="Text content to store")
-    project: str = Field(..., description="Project name")
+    text: str = Field(..., min_length=1, max_length=100_000, description="Text content to store")
+    project: str = Field(..., min_length=1, max_length=128, description="Project name")
     file: Optional[str] = Field(default=None, description="Source file path")
     type: str = Field(default="general", description="Memory type: code, doc, decision, architecture, etc.")
     metadata: Optional[dict] = Field(default=None, description="Additional metadata")
@@ -113,7 +113,7 @@ class MemoryStoreRequest(BaseModel):
 
 class MemorySearchRequest(BaseModel):
     """Request to search memory."""
-    query: str = Field(..., description="Search query text")
+    query: str = Field(..., min_length=1, max_length=10_000, description="Search query text")
     project: Optional[str] = Field(default=None, description="Filter by project")
     type: Optional[str] = Field(default=None, description="Filter by memory type")
     top_k: int = Field(default=10, ge=1, le=100, description="Number of results")

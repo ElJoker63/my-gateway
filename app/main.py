@@ -45,6 +45,13 @@ async def lifespan(app: FastAPI):
     logger.info("My Gateway AI starting up...")
     logger.info("=" * 60)
 
+    if not settings.auth_enabled:
+        logger.warning("!" * 60)
+        logger.warning("AUTHENTICATION IS DISABLED (GATEWAY_API_KEY not set).")
+        logger.warning("The gateway will accept ALL requests without a key.")
+        logger.warning("Set GATEWAY_API_KEY in your environment before exposing this service.")
+        logger.warning("!" * 60)
+
     # Initialize Redis
     try:
         await init_redis()
@@ -103,14 +110,38 @@ app = FastAPI(
 # =============================================================================
 
 
-# CORS — allow all origins for local development
+# CORS — origins are explicitly configurable; "*" is not allowed with credentials
+cors_origins = [
+    o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Request size limit middleware (defense against oversized payloads)
+@app.middleware("http")
+async def body_size_limit_middleware(request: Request, call_next):
+    """Reject requests whose body exceeds the configured size limit."""
+    settings = get_settings()
+    max_bytes = settings.max_request_size_mb * 1024 * 1024
+    content_length = request.headers.get("content-length")
+
+    if content_length is not None:
+        try:
+            if int(content_length) > max_bytes:
+                return JSONResponse(
+                    status_code=413,
+                    content={"error": f"Request body exceeds the {settings.max_request_size_mb} MB limit"},
+                )
+        except ValueError:
+            return JSONResponse(status_code=400, content={"error": "Invalid Content-Length header"})
+
+    return await call_next(request)
 
 
 # Request timing middleware
@@ -141,27 +172,27 @@ async def auth_middleware(request: Request, call_next):
     if request.url.path in public_paths:
         return await call_next(request)
 
-    # Check API key
+    # Skip entirely when auth is disabled for local development
+    if not settings.auth_enabled:
+        return await call_next(request)
+
+    # Check API key header or Bearer token
     auth_header = request.headers.get("Authorization", "")
     api_key = request.headers.get("X-API-Key", "")
 
-    # Support "Bearer <key>" format used by agents
     if auth_header.startswith("Bearer "):
-        provided_key = auth_header[7:]
+        provided_key = auth_header[7:].strip()
     elif api_key:
-        provided_key = api_key
+        provided_key = api_key.strip()
     else:
         provided_key = ""
 
-    # Validate against gateway key (skip if default key)
-    if settings.gateway_api_key != "change-me-to-a-secure-key":
-        if provided_key != settings.gateway_api_key:
-            # Also allow if the key is an LLM provider key (agent pass-through)
-            if provided_key not in {settings.nvidia_api_key, settings.openai_api_key}:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": "Invalid API key"},
-                )
+    # Only the gateway key authenticates — provider keys are NOT valid credentials.
+    if not provided_key or provided_key != settings.gateway_api_key:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Invalid or missing API key"},
+        )
 
     return await call_next(request)
 
