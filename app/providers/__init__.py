@@ -8,6 +8,7 @@ import logging
 from app.config import get_settings
 from app.services.model_sync import register_provider_metadata
 
+from .antigravity import AntigravityProvider
 from .base import LLMProvider
 from .chutes import ChutesProvider
 from .cloudflare import CloudflareProvider
@@ -64,6 +65,7 @@ PROVIDER_CLASSES = {
     "opencode_go": OpencodeGoProvider,
     "kilocode": KilocodeProvider,
     "kiro": KiroProvider,
+    "antigravity": AntigravityProvider,
     "nous_research": NousResearchProvider,
     "deepseek": DeepSeekProvider,
     "siliconflow": SiliconFlowProvider,

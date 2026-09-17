@@ -3,17 +3,14 @@
 import json
 import struct
 import zlib
-
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.providers.kiro.adapter import KiroProvider, _build_kiro_request, _as_text
+import pytest
+from app.providers.kiro.adapter import KiroProvider, _build_kiro_request
 from app.providers.kiro.eventstream import (
     EventStreamError,
     iter_eventstream_payloads,
-    _crc32,
 )
-
 
 # ---------------------------------------------------------------
 # Event stream framing helpers

@@ -149,3 +149,32 @@ OpenAI-compatible providers added by parity with [openproxy](https://github.com/
 Each follows the global conventions: `X_API_KEY` / `X_API_KEYS` / `X_BASE_URL` / `X_DEFAULT_MODEL` / `X_RPM_LIMIT` / `X_EMBEDDING_MODEL`.
 
 > **OAuth-only upstreams (Kiro, Antigravity) are intentionally not ported**: they authenticate via Google/AWS CodeWhisperer OAuth user flows rather than static API keys, which is out of scope for this gateway's static-key model.
+
+### OAuth-backed providers (Kiro, Antigravity)
+
+These providers authenticate with OAuth instead of static keys. Connect them from the dashboard's **OAuth** page or via the API:
+
+```bash
+# 1. Start the flow
+curl -X POST http://localhost:8000/api/oauth/kiro/start \
+  -H "Authorization: Bearer $GATEWAY_API_KEY"
+
+# 2. Open the returned verificationUri / authUrl in your browser
+
+# 3. For kiro the gateway polls until granted; for antigravity Google
+#    redirects to /dashboard/oauth/callback when done.
+
+# 4. Check status
+curl http://localhost:8000/api/oauth/status \
+  -H "Authorization: Bearer $GATEWAY_API_KEY"
+```
+
+Antigravity defaults to the public Google Cloud Code client id; supply your own via:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ANTIGRAVITY_CLIENT_ID` | Cloud Code public client | Google OAuth client ID |
+| `ANTIGRAVITY_CLIENT_SECRET` | *(empty)* | Client secret for your client id (required only with a custom id) |
+| `ANTIGRAVITY_REDIRECT_URI` | `http://localhost:8000/dashboard/oauth/callback` | OAuth callback the client id is registered for |
+
+Both providers store only access/refresh tokens — never passwords — in the gateway's Redis (`gw:oauth:*` keys).

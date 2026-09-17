@@ -8,9 +8,7 @@ Response` envelope from OpenAI-shaped chat calls and unpacks the stream.
 
 import json
 import logging
-import time
-import uuid
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 import httpx
 
@@ -40,10 +38,10 @@ def _as_text(content) -> str:
 def _build_kiro_request(
     messages: list[dict],
     model: str,
-    temperature: Optional[float],
-    max_tokens: Optional[int],
-    top_p: Optional[float],
-    stop: Optional[list[str]],
+    temperature: float | None,
+    max_tokens: int | None,
+    top_p: float | None,
+    stop: list[str] | None,
 ) -> dict:
     """Translate an OpenAI message list into the CodeWhisperer request body."""
     last_user_idx = None
@@ -114,7 +112,7 @@ class KiroProvider(LLMProvider):
             "reasoning": True,
         }
         self.embedding_model = ""
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -132,12 +130,12 @@ class KiroProvider(LLMProvider):
     async def chat(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> dict:
         model_id = model or self.default_model
@@ -168,12 +166,12 @@ class KiroProvider(LLMProvider):
     async def chat_stream(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> AsyncIterator[dict]:
         """Kiro streams via EventStream — we surface it as one-chunk-at-a-time deltas."""

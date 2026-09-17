@@ -323,3 +323,56 @@ Fetch one combo. Accepts the bare name or `combo:<name>`.
 ### DELETE /api/combos/{name}
 
 Delete a combo.
+
+---
+
+## OAuth
+
+OAuth-backed providers (Kiro, Antigravity) authenticate via browser/device flows instead of static API keys.
+
+### POST /api/oauth/{provider}/start
+
+Begin an OAuth handshake for `kiro` or `antigravity`. The response shape differs by flow:
+
+**Device code (kiro)** — response:
+```json
+{
+  "provider": "kiro",
+  "flow": "device_code",
+  "verificationUri": "https://device.sso.us-east-1.amazonaws.com/",
+  "userCode": "ABCD-EFGH",
+  "expiresIn": 600,
+  "interval": 5,
+  "state": "..."
+}
+```
+
+**PKCE (antigravity)** — response:
+```json
+{
+  "provider": "antigravity",
+  "flow": "pkce",
+  "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?...&code_challenge_method=S256",
+  "state": "..."
+}
+```
+
+### GET /api/oauth/{provider}/poll?state=...
+
+For device flows. Returns HTTP 202 (`authorization_pending`/`slow_down`) while the user hasn't consented, and HTTP 200 when the tokens are stored.
+
+### GET /api/oauth/{provider}/callback?code=...&state=...
+
+PKCE callback target (Google redirects here after consent).
+
+### GET /api/oauth/status
+
+Current OAuth session per provider:
+
+```json
+{ "kiro": { "connected": true, "expires_in": 3120 } }
+```
+
+### DELETE /api/oauth/{provider}
+
+Disconnect a provider (drops its stored tokens).
