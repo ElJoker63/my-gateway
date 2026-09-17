@@ -12,7 +12,7 @@ class TestHealthEndpoint:
         """Should return health status."""
         with (
             patch("app.main.redis_health_check", new_callable=AsyncMock, return_value={"status": "healthy", "latency_ms": 1.0}),
-            patch("app.main.qdrant_health_check", return_value={"status": "healthy", "latency_ms": 2.0}),
+            patch("app.main.qdrant_health_check", new_callable=AsyncMock, return_value={"status": "healthy", "latency_ms": 2.0}),
         ):
             response = await client.get("/health")
             assert response.status_code == 200
@@ -27,14 +27,17 @@ class TestChatEndpoints:
 
     async def test_gateway_chat(self, client, sample_llm_response):
         """Test POST /api/chat endpoint."""
+        key_stub = MagicMock(key="k", key_id="fid", display="d", index=0, requests_used=1, requests_limit=35)
+
         with (
             patch("app.api.chat.get_cached_response", new_callable=AsyncMock, return_value=None),
             patch("app.api.chat.build_context", new_callable=AsyncMock, return_value=[{"role": "user", "content": "test"}]),
-            patch("app.api.chat.rate_limiter") as mock_limiter,
+            patch("app.api.chat.key_manager") as mock_km,
             patch("app.api.chat.get_provider") as mock_get_provider,
             patch("app.api.chat.set_cached_response", new_callable=AsyncMock),
         ):
-            mock_limiter.wait_if_needed = AsyncMock(return_value={"allowed": True, "waited_seconds": 0})
+            mock_km.acquire_key = AsyncMock(return_value=key_stub)
+            mock_km.report_error = AsyncMock()
             mock_provider = AsyncMock()
             mock_provider.name = "nvidia"
             mock_provider.default_model = "test-model"
@@ -52,14 +55,17 @@ class TestChatEndpoints:
 
     async def test_openai_chat_completions(self, client, sample_llm_response):
         """Test POST /v1/chat/completions endpoint."""
+        key_stub = MagicMock(key="k", key_id="fid", display="d", index=0, requests_used=1, requests_limit=35)
+
         with (
             patch("app.api.chat.get_cached_response", new_callable=AsyncMock, return_value=None),
             patch("app.api.chat.build_context", new_callable=AsyncMock, return_value=[{"role": "user", "content": "test"}]),
-            patch("app.api.chat.rate_limiter") as mock_limiter,
+            patch("app.api.chat.key_manager") as mock_km,
             patch("app.api.chat.get_provider") as mock_get_provider,
             patch("app.api.chat.set_cached_response", new_callable=AsyncMock),
         ):
-            mock_limiter.wait_if_needed = AsyncMock(return_value={"allowed": True, "waited_seconds": 0})
+            mock_km.acquire_key = AsyncMock(return_value=key_stub)
+            mock_km.report_error = AsyncMock()
             mock_provider = AsyncMock()
             mock_provider.name = "nvidia"
             mock_provider.default_model = "test-model"
@@ -107,7 +113,7 @@ class TestChatEndpoints:
 
     async def test_list_models(self, client):
         """Test GET /v1/models endpoint."""
-        with patch("app.api.chat.list_providers", return_value=["nvidia"]):
+        with patch("app.providers.list_providers", return_value=["nvidia"]):
             mock_provider = MagicMock()
             mock_provider.default_model = "test-model"
             with patch("app.api.chat.get_provider", return_value=mock_provider):
@@ -131,7 +137,7 @@ class TestAuthMiddleware:
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             with (
                 patch("app.main.redis_health_check", new_callable=AsyncMock, return_value={"status": "healthy"}),
-                patch("app.main.qdrant_health_check", return_value={"status": "healthy"}),
+                patch("app.main.qdrant_health_check", new_callable=AsyncMock, return_value={"status": "healthy"}),
             ):
                 response = await client.get("/health")
                 assert response.status_code == 200
