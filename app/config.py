@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4o", description="Default OpenAI model")
     openai_base_url: str = Field(default="https://api.openai.com/v1", description="OpenAI API base URL")
     openai_rpm_limit: int = Field(default=0, description="RPM limit per key for OpenAI (0 = inherit default)")
+    openai_embedding_model: str = Field(default="text-embedding-3-small", description="Default OpenAI embedding model")
 
     # --- Groq Provider ---
     groq_api_key: str = Field(default="", description="Groq API key (single key, backward compat)")

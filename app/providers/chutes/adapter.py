@@ -1,5 +1,6 @@
 """ Chutes LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import CHUTES_BASE_URL, CHUTES_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class ChutesProvider(OpenAIAdapter):
             default_model=CHUTES_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("CHUTES_EMBEDDING_MODEL", ""),
         )

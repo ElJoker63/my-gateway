@@ -1,5 +1,6 @@
 """ Lingyiwanwu LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import LINGYIWANWU_BASE_URL, LINGYIWANWU_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class LingyiWanwuProvider(OpenAIAdapter):
             default_model=LINGYIWANWU_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("LINGYIWANWU_EMBEDDING_MODEL", ""),
         )

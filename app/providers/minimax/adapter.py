@@ -1,5 +1,6 @@
 """ Minimax LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import MINIMAX_BASE_URL, MINIMAX_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class MiniMaxProvider(OpenAIAdapter):
             default_model=MINIMAX_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("MINIMAX_EMBEDDING_MODEL", ""),
         )

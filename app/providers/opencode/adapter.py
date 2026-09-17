@@ -1,5 +1,6 @@
 """ Opencode LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import OPENCODE_BASE_URL, OPENCODE_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class OpenCodeProvider(OpenAIAdapter):
             default_model=OPENCODE_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("OPENCODE_EMBEDDING_MODEL", ""),
         )

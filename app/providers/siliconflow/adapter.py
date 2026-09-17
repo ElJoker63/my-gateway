@@ -1,5 +1,6 @@
 """ Siliconflow LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import SILICONFLOW_BASE_URL, SILICONFLOW_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class SiliconFlowProvider(OpenAIAdapter):
             default_model=SILICONFLOW_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("SILICONFLOW_EMBEDDING_MODEL", ""),
         )

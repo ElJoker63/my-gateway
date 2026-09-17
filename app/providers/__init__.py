@@ -84,10 +84,12 @@ def init_providers():
     for name, provider_cls in PROVIDER_CLASSES.items():
         keys = settings.get_provider_keys(name)
         try:
-            instance = provider_cls()
+            # Inject the first pool key as the provider's default — the KeyManager
+            # may still override per-request via the api_key parameter.
+            instance = provider_cls(api_key=keys[0] if keys else "")
             _providers[name] = instance
             rpm = settings.get_provider_rpm(name)
-            key_manager.register_pool(name, keys if keys else ["default-key"], rpm_per_key=rpm)
+            key_manager.register_pool(name, keys if keys else [], rpm_per_key=rpm)
             register_provider_metadata(name, instance.get_metadata())
             logger.info(f"Registered provider: {name} ({len(keys)} key(s), {rpm} RPM/key)")
         except Exception as e:

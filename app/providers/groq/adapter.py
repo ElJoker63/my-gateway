@@ -1,5 +1,6 @@
 """Groq LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import GROQ_BASE_URL, GROQ_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class GroqProvider(OpenAIAdapter):
             default_model=GROQ_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("GROQ_EMBEDDING_MODEL", ""),
         )

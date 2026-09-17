@@ -21,11 +21,19 @@ class OllamaProvider(LLMProvider):
 
     name = "ollama"
 
-    def __init__(self):
+    def __init__(self, api_key: str = ""):
         settings = get_settings()
-        self.api_key = settings.ollama_api_key  # Fallback single key
+        self.api_key = api_key or settings.ollama_api_key  # Fallback single key
         self.base_url = settings.ollama_base_url.rstrip("/")
         self.default_model = settings.ollama_model
+        self.capabilities = {
+            "chat": True,
+            "streaming": True,
+            "embeddings": True,
+            "vision": False,
+            "tool_calling": True,
+        }
+        self.embedding_model = getattr(settings, "ollama_embedding_model", "") or ""
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:

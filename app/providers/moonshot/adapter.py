@@ -1,5 +1,6 @@
 """ Moonshot LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import MOONSHOT_BASE_URL, MOONSHOT_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class MoonshotProvider(OpenAIAdapter):
             default_model=MOONSHOT_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("MOONSHOT_EMBEDDING_MODEL", ""),
         )

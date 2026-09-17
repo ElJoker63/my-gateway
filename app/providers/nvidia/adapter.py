@@ -1,5 +1,6 @@
 """ Nvidia LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import NVIDIA_BASE_URL, NVIDIA_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class NvidiaProvider(OpenAIAdapter):
             default_model=NVIDIA_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("NVIDIA_EMBEDDING_MODEL", ""),
         )

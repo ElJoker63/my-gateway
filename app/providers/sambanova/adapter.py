@@ -1,5 +1,6 @@
 """ Sambanova LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import SAMBANOVA_BASE_URL, SAMBANOVA_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class SambaNovaProvider(OpenAIAdapter):
             default_model=SAMBANOVA_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("SAMBANOVA_EMBEDDING_MODEL", ""),
         )

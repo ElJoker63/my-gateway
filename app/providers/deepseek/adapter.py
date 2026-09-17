@@ -1,5 +1,6 @@
 """ Deepseek LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import DEEPSEEK_BASE_URL, DEEPSEEK_DEFAULT_MODEL
@@ -21,4 +22,5 @@ class DeepSeekProvider(OpenAIAdapter):
             default_model=DEEPSEEK_DEFAULT_MODEL,
             default_api_key=api_key,
             capabilities=capabilities,
+            embedding_model=os.getenv("DEEPSEEK_EMBEDDING_MODEL", ""),
         )

@@ -25,6 +25,7 @@ class OpenAIAdapter(LLMProvider):
         timeout: float = 60.0,
         extra_headers: Optional[dict] = None,
         capabilities: Optional[dict] = None,
+        embedding_model: Optional[str] = None,
     ):
         self.name = name
         self.base_url = base_url.rstrip("/")
@@ -32,11 +33,12 @@ class OpenAIAdapter(LLMProvider):
         self.default_api_key = default_api_key
         self.timeout = timeout
         self.extra_headers = extra_headers or {}
-        self.capabilities = capabilities or {
+        self.embedding_model = embedding_model or ""
+        self.capabilities = capabilities if capabilities else {
             "chat": True,
             "streaming": True,
-            "embeddings": True,
-            "vision": True,
+            "embeddings": False,
+            "vision": False,
             "tool_calling": True,
             "reasoning": False,
         }
@@ -149,10 +151,22 @@ class OpenAIAdapter(LLMProvider):
         api_key: Optional[str] = None,
         **kwargs,
     ) -> dict:
+        if not self.capabilities.get("embeddings", False):
+            raise NotImplementedError(
+                f"Provider '{self.name}' does not support embeddings"
+            )
+        if not model:
+            model = self.embedding_model
+        if not model:
+            raise ValueError(
+                f"No embedding model configured for provider '{self.name}' — "
+                f"pass model= explicitly or set {self.name.upper()}_EMBEDDING_MODEL"
+            )
+
         url = f"{self.base_url}/embeddings"
         headers = self._get_headers(api_key)
         payload = {
-            "model": model or "text-embedding-3-small",
+            "model": model,
             "input": input_text,
         }
         payload.update(kwargs)
@@ -164,19 +178,21 @@ class OpenAIAdapter(LLMProvider):
     async def list_models(self, api_key: Optional[str] = None) -> list[dict]:
         url = f"{self.base_url}/models"
         headers = self._get_headers(api_key)
-        try:
-            response = await self.client.get(url, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("data", [])
-        except Exception as e:
-            logger.warning(f"Failed to fetch models for provider '{self.name}': {e}")
-            return []
+        response = await self.client.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("data", [])
 
     async def health_check(self) -> bool:
+        """
+        Real connectivity check: GET /models must succeed.
+        Returns False when the provider is unreachable or the key is rejected.
+        """
         try:
-            models = await self.list_models()
-            return True if models is not None else False
+            url = f"{self.base_url}/models"
+            headers = self._get_headers()
+            response = await self.client.get(url, headers=headers, timeout=10.0)
+            return response.status_code < 400
         except Exception:
             return False
 

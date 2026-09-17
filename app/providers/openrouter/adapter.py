@@ -1,5 +1,6 @@
 """OpenRouter LLM Provider Adapter."""
 import json
+import os
 from pathlib import Path
 from app.providers.openai_adapter import OpenAIAdapter
 from .config import OPENROUTER_BASE_URL, OPENROUTER_DEFAULT_MODEL
@@ -25,4 +26,5 @@ class OpenRouterProvider(OpenAIAdapter):
                 "X-Title": "My Gateway AI",
             },
             capabilities=capabilities,
+            embedding_model=os.getenv("OPENROUTER_EMBEDDING_MODEL", ""),
         )

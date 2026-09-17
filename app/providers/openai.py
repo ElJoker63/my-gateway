@@ -21,11 +21,19 @@ class OpenAIProvider(LLMProvider):
 
     name = "openai"
 
-    def __init__(self):
+    def __init__(self, api_key: str = ""):
         settings = get_settings()
-        self.api_key = settings.openai_api_key  # Fallback single key
+        self.api_key = api_key or settings.openai_api_key  # Fallback single key
         self.base_url = settings.openai_base_url.rstrip("/")
         self.default_model = settings.openai_model
+        self.capabilities = {
+            "chat": True,
+            "streaming": True,
+            "embeddings": True,
+            "vision": True,
+            "tool_calling": True,
+        }
+        self.embedding_model = getattr(settings, "openai_embedding_model", "") or ""
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:

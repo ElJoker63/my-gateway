@@ -1,6 +1,5 @@
 """Tests for LLM providers."""
 
-import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -75,24 +74,55 @@ class TestLLMProviderBase:
 
 
 class TestNvidiaProvider:
-    """Test the NVIDIA provider."""
+    """Test the NVIDIA provider (package adapter)."""
 
-    def test_initialization(self, settings):
-        """Should initialize with settings."""
-        provider = NvidiaProvider()
+    def test_initialization_with_key(self):
+        """Should store the injected API key."""
+        provider = NvidiaProvider(api_key="nv-test-key")
         assert provider.name == "nvidia"
-        assert provider.api_key == "test-nvidia-key"
+        assert provider.default_api_key == "nv-test-key"
+        assert provider.base_url  # from config / env
 
     @pytest.mark.asyncio
-    async def test_health_check_no_key(self):
-        """Should return False when no API key."""
-        with patch.dict("os.environ", {"NVIDIA_API_KEY": ""}):
-            from app.config import get_settings
-            get_settings.cache_clear()
-            provider = NvidiaProvider()
-            provider.api_key = ""
-            result = await provider.health_check()
-            assert result is False
+    async def test_health_check_unhealthy_on_http_error(self):
+        """health_check must be False when the provider returns an error status."""
+        provider = NvidiaProvider(api_key="bad-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        provider.client.get = AsyncMock(return_value=mock_response)
+        assert await provider.health_check() is False
+
+    @pytest.mark.asyncio
+    async def test_health_check_healthy_on_ok(self):
+        """health_check must be True when /models responds 2xx/3xx."""
+        provider = NvidiaProvider(api_key="good-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        provider.client.get = AsyncMock(return_value=mock_response)
+        assert await provider.health_check() is True
+
+    @pytest.mark.asyncio
+    async def test_health_check_false_on_exception(self):
+        """health_check must swallow transport errors and return False."""
+        provider = NvidiaProvider(api_key="any")
+        provider.client.get = AsyncMock(side_effect=Exception("boom"))
+        assert await provider.health_check() is False
+
+    @pytest.mark.asyncio
+    async def test_embeddings_rejected_when_capability_off(self):
+        """Providers without embeddings capability must refuse embedding calls."""
+        from app.providers.deepseek import DeepSeekProvider
+        provider = DeepSeekProvider(api_key="k")
+        with pytest.raises(NotImplementedError):
+            await provider.embeddings(["hi"])
+
+    @pytest.mark.asyncio
+    async def test_embeddings_requires_model(self):
+        """Capable provider without a configured model must ask for one."""
+        provider = NvidiaProvider(api_key="k")
+        provider.embedding_model = ""
+        with pytest.raises(ValueError, match="embedding model"):
+            await provider.embeddings(["hi"])
 
 
 class TestOpenAIProvider:
@@ -126,3 +156,12 @@ class TestProviderRegistry:
         assert provider is not None
         assert hasattr(provider, "chat")
         assert hasattr(provider, "chat_stream")
+
+    def test_key_injection_at_init(self):
+        """init_providers must inject the first pool key into the adapter."""
+        from app.providers import PROVIDER_CLASSES, _providers
+        init_providers()
+        nvidia = _providers["nvidia"]
+        # conftest sets NVIDIA_API_KEY=test-nvidia-key
+        assert getattr(nvidia, "default_api_key", "") == "test-nvidia-key" or \
+               getattr(nvidia, "api_key", "") == "test-nvidia-key"
