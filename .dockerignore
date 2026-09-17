@@ -38,3 +38,4 @@ data/
 # Editors
 .idea/
 .vscode/
+app/dashboard/dist/

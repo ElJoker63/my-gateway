@@ -1,6 +1,16 @@
 # syntax=docker/dockerfile:1
 
-# ---------- Builder ----------
+# ---------- Dashboard builder ----------
+FROM node:22-alpine AS dashboard-builder
+
+WORKDIR /build
+COPY dashboard/package.json dashboard/package-lock.json* ./
+RUN npm ci || npm install
+
+COPY dashboard/ ./
+RUN npm run build
+
+# ---------- Python builder ----------
 FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -37,6 +47,9 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 
 # App code only — .dockerignore keeps .env, tests, docs, and vcs out
 COPY --chown=gateway:gateway . .
+
+# Prebuilt dashboard from the node stage
+COPY --from=dashboard-builder --chown=gateway:gateway /build/dist /app/app/dashboard/dist
 
 # Data volume for anything the app persists (Qdrant/Redis live in their own containers)
 RUN mkdir -p /data && chown gateway:gateway /data /app/models

@@ -339,7 +339,7 @@ app.include_router(api_router)
 # Static Dashboard (Vue 3 SPA bundled as plain ES modules — no build step)
 # =============================================================================
 
-_dashboard_dir = Path(__file__).resolve().parent / "dashboard"
+_dashboard_dir = Path(__file__).resolve().parent / "dashboard" / "dist"
 if _dashboard_dir.is_dir():
     app.mount(
         "/dashboard",

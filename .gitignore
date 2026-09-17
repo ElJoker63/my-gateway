@@ -32,3 +32,6 @@ data/
 .DS_Store
 Thumbs.db
 /dashboard/node_modules
+
+# Dashboard build
+dashboard/node_modules/
