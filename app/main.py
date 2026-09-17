@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize Qdrant
     try:
-        init_qdrant()
+        await init_qdrant()
         logger.info("✓ Qdrant connected")
     except Exception as e:
         logger.error(f"✗ Qdrant connection failed: {e}")
@@ -73,6 +73,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"✗ Provider initialization failed: {e}")
 
+    # Preload local embedding model in a worker thread (first chat would block otherwise)
+    from app.services.embedding import preload_embedding_model
+    await preload_embedding_model()
+
     logger.info("=" * 60)
     logger.info("My Gateway AI ready on port 8000")
     logger.info("=" * 60)
@@ -83,7 +87,7 @@ async def lifespan(app: FastAPI):
     logger.info("My Gateway AI shutting down...")
     await close_providers()
     await close_redis()
-    close_qdrant()
+    await close_qdrant()
     logger.info("My Gateway AI shutdown complete")
 
 
@@ -209,7 +213,7 @@ async def health_check():
     Returns status of all connected services.
     """
     redis_status = await redis_health_check()
-    qdrant_status = qdrant_health_check()
+    qdrant_status = await qdrant_health_check()
 
     services = {
         "redis": ServiceHealth(**redis_status),

@@ -1,8 +1,9 @@
 """
-Qdrant-backed vector memory service.
+Qdrant-backed vector memory service (async).
 Stores and retrieves project memories using semantic embeddings.
 """
 
+import hashlib
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -16,20 +17,22 @@ from qdrant_client.models import (
 )
 
 from app.config import get_settings
-from app.database.qdrant import get_qdrant, ensure_collection
+from app.database.qdrant import get_qdrant, ensure_collection, forget_collection
 from app.services.embedding import get_embedding, get_embeddings_batch
 
 logger = logging.getLogger(__name__)
 
-# Collection naming convention: "project_{name}"
+# Collection naming convention: "project_{slug}_{hash}"
+# The short hash prevents collisions between names that sanitize identically
+# (e.g. "my-project", "my_project", "My Project").
 COLLECTION_PREFIX = "project_"
 
 
 def _collection_name(project: str) -> str:
-    """Get the Qdrant collection name for a project."""
-    # Sanitize project name for Qdrant (alphanumeric + underscore)
-    safe_name = "".join(c if c.isalnum() or c == "_" else "_" for c in project.lower())
-    return f"{COLLECTION_PREFIX}{safe_name}"
+    """Get a collision-free, Qdrant-safe collection name for a project."""
+    slug = "".join(c if c.isalnum() or c == "_" else "_" for c in project.lower())
+    digest = hashlib.sha256(project.encode("utf-8")).hexdigest()[:8]
+    return f"{COLLECTION_PREFIX}{slug}_{digest}"
 
 
 async def store_memory(
@@ -53,7 +56,7 @@ async def store_memory(
         The generated point ID
     """
     collection = _collection_name(project)
-    ensure_collection(collection)
+    await ensure_collection(collection)
 
     # Generate embedding
     vector = await get_embedding(text)
@@ -70,7 +73,7 @@ async def store_memory(
         payload["metadata"] = metadata
 
     client = get_qdrant()
-    client.upsert(
+    await client.upsert(
         collection_name=collection,
         points=[
             PointStruct(
@@ -103,7 +106,7 @@ async def store_memories_batch(
         return 0
 
     collection = _collection_name(project)
-    ensure_collection(collection)
+    await ensure_collection(collection)
 
     # Batch embed all texts
     texts = [e["text"] for e in entries]
@@ -129,7 +132,7 @@ async def store_memories_batch(
     batch_size = 100
     for i in range(0, len(points), batch_size):
         batch = points[i : i + batch_size]
-        client.upsert(collection_name=collection, points=batch)
+        await client.upsert(collection_name=collection, points=batch)
 
     logger.info(f"Batch stored {len(points)} memories in '{collection}'")
     return len(points)
@@ -156,7 +159,7 @@ async def search_memory(
         List of matching memory entries with scores
     """
     settings = get_settings()
-    threshold = score_threshold or settings.memory_score_threshold
+    threshold = score_threshold if score_threshold is not None else settings.memory_score_threshold
 
     # Generate query embedding
     query_vector = await get_embedding(query)
@@ -170,45 +173,54 @@ async def search_memory(
 
     query_filter = Filter(must=filter_conditions) if filter_conditions else None
 
+    client = get_qdrant()
+
     # Determine which collections to search
     if project:
         collections = [_collection_name(project)]
     else:
         # Search all project collections
-        client = get_qdrant()
-        all_collections = [c.name for c in client.get_collections().collections]
-        collections = [c for c in all_collections if c.startswith(COLLECTION_PREFIX)]
+        all_collections = await client.get_collections()
+        collections = [
+            c.name for c in all_collections.collections
+            if c.name.startswith(COLLECTION_PREFIX)
+        ]
 
-    results = []
-    client = get_qdrant()
-
-    for collection in collections:
-        try:
-            hits = client.search(
+    import asyncio
+    results = await asyncio.gather(
+        *(
+            client.query_points(
                 collection_name=collection,
-                query_vector=query_vector,
+                query=query_vector,
                 query_filter=query_filter,
                 limit=top_k,
                 score_threshold=threshold,
             )
+            for collection in collections
+        ),
+        return_exceptions=True,
+    )
 
-            for hit in hits:
-                results.append({
-                    "id": str(hit.id),
-                    "text": hit.payload.get("text", ""),
-                    "project": hit.payload.get("project", ""),
-                    "file": hit.payload.get("file", ""),
-                    "type": hit.payload.get("type", "general"),
-                    "score": round(hit.score, 4),
-                    "timestamp": hit.payload.get("timestamp", ""),
-                    "metadata": hit.payload.get("metadata"),
-                })
-        except Exception as e:
-            logger.error(f"Search error in collection '{collection}': {e}")
+    matches: list[dict] = []
+    for collection, outcome in zip(collections, results):
+        if isinstance(outcome, Exception):
+            logger.error(f"Search error in collection '{collection}': {outcome}")
+            continue
+        for hit in outcome.points:
+            matches.append({
+                "id": str(hit.id),
+                "text": hit.payload.get("text", "") if hit.payload else "",
+                "project": hit.payload.get("project", "") if hit.payload else "",
+                "file": hit.payload.get("file", "") if hit.payload else "",
+                "type": hit.payload.get("type", "general") if hit.payload else "general",
+                "score": round(hit.score, 4),
+                "timestamp": hit.payload.get("timestamp", "") if hit.payload else "",
+                "metadata": hit.payload.get("metadata") if hit.payload else None,
+            })
 
     # Sort by score descending and limit
-    results.sort(key=lambda x: x["score"], reverse=True)
-    return results[:top_k]
+    matches.sort(key=lambda x: x["score"], reverse=True)
+    return matches[:top_k]
 
 
 async def get_project_memories(project: str, limit: int = 100) -> list[dict]:
@@ -217,7 +229,7 @@ async def get_project_memories(project: str, limit: int = 100) -> list[dict]:
     client = get_qdrant()
 
     try:
-        result = client.scroll(
+        points, _next = await client.scroll(
             collection_name=collection,
             limit=limit,
             with_payload=True,
@@ -225,15 +237,16 @@ async def get_project_memories(project: str, limit: int = 100) -> list[dict]:
         )
 
         memories = []
-        for point in result[0]:
+        for point in points:
+            payload = point.payload or {}
             memories.append({
                 "id": str(point.id),
-                "text": point.payload.get("text", ""),
-                "project": point.payload.get("project", ""),
-                "file": point.payload.get("file", ""),
-                "type": point.payload.get("type", "general"),
-                "timestamp": point.payload.get("timestamp", ""),
-                "metadata": point.payload.get("metadata"),
+                "text": payload.get("text", ""),
+                "project": payload.get("project", ""),
+                "file": payload.get("file", ""),
+                "type": payload.get("type", "general"),
+                "timestamp": payload.get("timestamp", ""),
+                "metadata": payload.get("metadata"),
             })
 
         return memories
@@ -248,9 +261,11 @@ async def delete_project_memory(project: str) -> bool:
     client = get_qdrant()
 
     try:
-        collections = [c.name for c in client.get_collections().collections]
-        if collection in collections:
-            client.delete_collection(collection_name=collection)
+        all_collections = await client.get_collections()
+        names = [c.name for c in all_collections.collections]
+        if collection in names:
+            await client.delete_collection(collection_name=collection)
+            forget_collection(collection)
             logger.info(f"Deleted collection: {collection}")
         return True
     except Exception as e:
@@ -264,7 +279,7 @@ async def get_project_stats(project: str) -> dict:
     client = get_qdrant()
 
     try:
-        info = client.get_collection(collection_name=collection)
+        info = await client.get_collection(collection_name=collection)
         return {
             "name": project,
             "collection": collection,
@@ -287,13 +302,16 @@ async def list_projects() -> list[str]:
     """List all projects that have memory collections."""
     client = get_qdrant()
     try:
-        collections = client.get_collections().collections
+        collections = await client.get_collections()
         projects = []
-        for c in collections:
+        for c in collections.collections:
             if c.name.startswith(COLLECTION_PREFIX):
                 project_name = c.name[len(COLLECTION_PREFIX):]
+                # Strip the collision hash suffix when reading back
+                if len(project_name) > 9 and project_name[-9] == "_":
+                    project_name = project_name[:-9]
                 projects.append(project_name)
-        return projects
+        return sorted(set(projects))
     except Exception as e:
         logger.error(f"Error listing projects: {e}")
         return []

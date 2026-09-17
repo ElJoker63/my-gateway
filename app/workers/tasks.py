@@ -1,8 +1,13 @@
 """
 Background tasks for the AI Gateway.
 Handles project indexing and other long-running operations.
+
+File scanning is CPU/IO-bound and synchronous by nature; it runs in a
+worker thread via asyncio.to_thread so the event loop stays responsive.
+Embedding + Qdrant storage remain async.
 """
 
+import asyncio
 import fnmatch
 import logging
 import os
@@ -54,8 +59,7 @@ def _should_ignore(path: str, ignore_patterns: list[str]) -> bool:
         if fnmatch.fnmatch(path, pattern):
             return True
         # Check if any path component matches
-        parts = Path(path).parts
-        for part in parts:
+        for part in Path(path).parts:
             if fnmatch.fnmatch(part, pattern):
                 return True
     return False
@@ -75,6 +79,7 @@ def _detect_file_type(filepath: str) -> str:
     """Detect the type of file for memory categorization."""
     ext = os.path.splitext(filepath)[1].lower()
     name = os.path.basename(filepath).lower()
+    parts = {p.lower() for p in Path(filepath).parts}
 
     if name in {"readme.md", "readme.txt", "readme.rst"}:
         return "documentation"
@@ -84,7 +89,7 @@ def _detect_file_type(filepath: str) -> str:
         return "infrastructure"
     if name in {"package.json", "requirements.txt", "pyproject.toml", "cargo.toml", "go.mod"}:
         return "dependencies"
-    if name.startswith("test_") or name.endswith("_test.py") or "/tests/" in filepath:
+    if name.startswith("test_") or name.endswith("_test.py") or "tests" in parts:
         return "test"
     if ext in {".md", ".rst", ".txt", ".adoc"}:
         return "documentation"
@@ -131,24 +136,19 @@ def _chunk_text(text: str, max_chunk_size: int = 1500, overlap: int = 200) -> li
     return chunks
 
 
-async def index_project_task(
+def _scan_project_files(
     path: str,
-    project_name: str,
-    file_patterns: Optional[list[str]] = None,
-):
+    file_patterns: Optional[list[str]],
+    ignore_patterns: list[str],
+    max_file_size: int,
+) -> tuple[list[dict], int, int, int]:
     """
-    Background task to index a project directory.
+    Walk a project directory and prepare memory entries (blocking work).
 
-    Scans all text files, chunks their content, generates embeddings,
-    and stores them in Qdrant.
+    Returns:
+        (entries, files_scanned, files_skipped, errors)
     """
-    settings = get_settings()
-    ignore_patterns = settings.index_ignore_patterns
-    max_file_size = settings.max_file_size_kb * 1024
-
-    logger.info(f"Starting project indexing: '{project_name}' at {path}")
-
-    entries = []
+    entries: list[dict] = []
     files_scanned = 0
     files_skipped = 0
     errors = 0
@@ -164,23 +164,19 @@ async def index_project_task(
             filepath = os.path.join(root, filename)
             rel_path = os.path.relpath(filepath, path)
 
-            # Skip ignored files
             if _should_ignore(filepath, ignore_patterns):
                 files_skipped += 1
                 continue
 
-            # Skip if not matching file patterns
             if file_patterns:
                 if not any(fnmatch.fnmatch(filename, p) for p in file_patterns):
                     files_skipped += 1
                     continue
 
-            # Skip non-text files
             if not _is_text_file(filepath):
                 files_skipped += 1
                 continue
 
-            # Skip large files
             try:
                 size = os.path.getsize(filepath)
                 if size > max_file_size:
@@ -190,7 +186,6 @@ async def index_project_task(
             except OSError:
                 continue
 
-            # Read and chunk file
             try:
                 with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
@@ -224,12 +219,43 @@ async def index_project_task(
                 errors += 1
                 continue
 
-    # Batch store all entries
-    if entries:
-        stored = await store_memories_batch(entries, project_name)
+    return entries, files_scanned, files_skipped, errors
+
+
+async def index_project_task(
+    path: str,
+    project_name: str,
+    file_patterns: Optional[list[str]] = None,
+):
+    """
+    Background task to index a project directory.
+
+    Scanning runs in a worker thread (blocking FS work); embedding and
+    Qdrant storage run async in bounded batches to cap memory usage.
+    """
+    settings = get_settings()
+    ignore_patterns = settings.index_ignore_patterns
+    max_file_size = settings.max_file_size_kb * 1024
+
+    logger.info(f"Starting project indexing: '{project_name}' at {path}")
+
+    entries, files_scanned, files_skipped, errors = await asyncio.to_thread(
+        _scan_project_files, path, file_patterns, ignore_patterns, max_file_size
+    )
+
+    # Store in bounded batches so very large repos don't exhaust memory
+    total_stored = 0
+    batch_size = 500
+    for i in range(0, len(entries), batch_size):
+        batch = entries[i : i + batch_size]
+        total_stored += await store_memories_batch(batch, project_name)
+        # Release the slices as soon as they are stored
+        entries[i : i + batch_size] = []
+
+    if total_stored:
         logger.info(
             f"Project '{project_name}' indexed: "
-            f"{files_scanned} files, {stored} memories, "
+            f"{files_scanned} files, {total_stored} memories, "
             f"{files_skipped} skipped, {errors} errors"
         )
     else:
@@ -238,7 +264,7 @@ async def index_project_task(
     return {
         "project": project_name,
         "files_scanned": files_scanned,
-        "memories_created": len(entries),
+        "memories_created": total_stored,
         "files_skipped": files_skipped,
         "errors": errors,
     }
