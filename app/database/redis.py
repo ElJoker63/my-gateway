@@ -26,7 +26,7 @@ async def get_redis() -> aioredis.Redis:
 
 
 async def init_redis() -> aioredis.Redis:
-    """Initialize the Redis connection pool."""
+    """Initialize the Redis connection pool and verify connectivity."""
     global _redis_pool
     settings = get_settings()
 
@@ -42,7 +42,10 @@ async def init_redis() -> aioredis.Redis:
     if settings.redis_password:
         kwargs["password"] = settings.redis_password
 
-    _redis_pool = aioredis.Redis(**kwargs)
+    client = aioredis.Redis(**kwargs)
+    # Real connectivity check — fail loudly at startup instead of at first request
+    await client.ping()
+    _redis_pool = client
     logger.info(f"Redis connection pool initialized: {settings.redis_host}:{settings.redis_port}")
     return _redis_pool
 

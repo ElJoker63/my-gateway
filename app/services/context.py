@@ -4,12 +4,35 @@ Automatically enriches LLM requests with relevant project memory and context.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 from app.config import get_settings
 from app.services.memory import search_memory
 
 logger = logging.getLogger(__name__)
+
+
+def extract_text_content(content: Union[str, list, None]) -> str:
+    """
+    Normalize message content to plain text.
+
+    OpenAI-compatible APIs allow content to be a string or a list of typed
+    blocks ([{"type": "text", "text": ...}, {"type": "image_url", ...}]).
+    Memory search and storage operate on text, so non-text blocks are dropped.
+    """
+    if content is None or isinstance(content, str):
+        return (content or "").strip()
+
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        return " ".join(p for p in parts if p).strip()
+
+    return str(content)
 
 
 async def build_context(
@@ -39,11 +62,11 @@ async def build_context(
 
     settings = get_settings()
 
-    # Find the last user message
+    # Find the last user message (normalize multimodal payloads to text)
     user_message = ""
     for msg in reversed(messages):
         if msg.get("role") == "user":
-            user_message = msg.get("content", "")
+            user_message = extract_text_content(msg.get("content"))
             break
 
     if not user_message:
@@ -101,10 +124,10 @@ async def build_context(
     has_system = enriched and enriched[0].get("role") == "system"
 
     if has_system:
-        # Append context to existing system message
+        # Append context to existing system message (normalize content to text)
         enriched[0] = {
             "role": "system",
-            "content": enriched[0]["content"] + "\n\n" + context_message,
+            "content": extract_text_content(enriched[0].get("content")) + "\n\n" + context_message,
         }
     else:
         # Add new system message

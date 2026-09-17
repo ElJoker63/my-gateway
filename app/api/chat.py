@@ -62,6 +62,9 @@ async def _call_with_fallback(
     """
     Call provider.chat() with the acquired key.
     On rate limit (429) or auth error, report the key and retry with next available.
+
+    Client-facing errors use generic messages; upstream details go to the logs
+    (they may echo sensitive request data or provider internals).
     """
     import httpx
     from app.services.key_manager import key_manager
@@ -89,11 +92,14 @@ async def _call_with_fallback(
                 error_type = "auth_error"
             else:
                 # Non-retryable HTTP error
-                logger.error(f"LLM call failed (HTTP {status}): {e}")
-                raise HTTPException(status_code=502, detail=f"LLM provider error: {str(e)}")
+                logger.error(f"LLM call failed (HTTP {status}) for provider '{provider.name}': {e}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Upstream provider '{provider.name}' returned an error",
+                )
 
             logger.warning(
-                f"Key {current_key.key_id} got {status} ({error_type}), "
+                f"Key {current_key.display} got {status} ({error_type}), "
                 f"attempting fallback (attempt {attempt + 1}/{max_retries})"
             )
             await key_manager.report_error(provider.name, current_key.key_id, error_type)
@@ -104,17 +110,23 @@ async def _call_with_fallback(
             except (TimeoutError, RuntimeError) as acquire_err:
                 raise HTTPException(
                     status_code=429,
-                    detail=f"All keys exhausted after fallback: {acquire_err}"
+                    detail="All API keys for this provider are exhausted — try again later",
                 )
 
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.error(f"LLM call failed: {e}")
-            raise HTTPException(status_code=502, detail=f"LLM provider error: {str(e)}")
+            logger.exception(f"LLM call failed for provider '{provider.name}'")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Upstream provider '{provider.name}' failed",
+            )
 
     # All retries exhausted
+    logger.error(f"LLM call failed after {max_retries} attempts: {last_error}")
     raise HTTPException(
         status_code=502,
-        detail=f"LLM call failed after {max_retries} attempts: {last_error}"
+        detail=f"Upstream provider '{provider.name}' failed after retries",
     )
 
 
@@ -170,9 +182,9 @@ async def _process_chat(
     try:
         key_info = await key_manager.acquire_key(provider.name)
     except TimeoutError as e:
-        raise HTTPException(status_code=429, detail=str(e))
+        raise HTTPException(status_code=429, detail="API keys exhausted — try again later")
     except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        raise HTTPException(status_code=503, detail="No API keys available for this provider")
 
     # --- Step 4: Call LLM provider with acquired key (+ fallback) ---
     result = await _call_with_fallback(
@@ -236,7 +248,8 @@ async def _process_chat_stream(
     try:
         key_info = await key_manager.acquire_key(provider.name)
     except (TimeoutError, RuntimeError) as e:
-        error_data = json.dumps({"error": {"message": str(e), "type": "rate_limit_error"}})
+        logger.warning(f"Stream rejected — could not acquire key: {e}")
+        error_data = json.dumps({"error": {"message": "No API keys available for this provider", "type": "rate_limit_error"}})
         yield f"data: {error_data}\n\n"
         return
 
@@ -275,8 +288,8 @@ async def _process_chat_stream(
         yield "data: [DONE]\n\n"
 
     except Exception as e:
-        logger.error(f"Stream error: {e}")
-        error_data = json.dumps({"error": {"message": str(e), "type": "stream_error"}})
+        logger.exception(f"Stream error for provider '{provider.name}'")
+        error_data = json.dumps({"error": {"message": "Upstream provider stream failed", "type": "stream_error"}})
         yield f"data: {error_data}\n\n"
 
 
@@ -547,13 +560,19 @@ async def _store_conversation_memory(
     response: str,
     project: str,
 ):
-    """Store conversation exchange in project memory (runs in background)."""
+    """Store conversation exchange in project memory (runs in background).
+
+    Multimodal user messages (content as a list of blocks) are normalized to
+    their text parts — images/audio are not stored.
+    """
     try:
+        from app.services.context import extract_text_content
+
         # Only store if the conversation is substantial
         last_user_msg = ""
         for msg in reversed(messages):
             if msg.get("role") == "user":
-                last_user_msg = msg.get("content", "")
+                last_user_msg = extract_text_content(msg.get("content"))
                 break
 
         if len(last_user_msg) < 20 or len(response) < 50:

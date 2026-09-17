@@ -40,7 +40,7 @@ async def store_memory_endpoint(request: MemoryStoreRequest):
         }
     except Exception as e:
         logger.error(f"Memory store error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to store memory: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to store memory")
 
 
 @router.post("/search", response_model=MemorySearchResponse, tags=["Memory"])
@@ -63,7 +63,7 @@ async def search_memory_endpoint(request: MemorySearchRequest):
         )
     except Exception as e:
         logger.error(f"Memory search error: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Memory search failed")
 
 
 @router.get("/project/{project}", tags=["Memory"])
@@ -81,7 +81,7 @@ async def get_project_memories_endpoint(
         }
     except Exception as e:
         logger.error(f"Error getting project memories: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal error")
 
 
 @router.delete("/project/{project}", tags=["Memory"])

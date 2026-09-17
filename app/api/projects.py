@@ -114,7 +114,7 @@ async def get_projects():
         }
     except Exception as e:
         logger.error(f"Error listing projects: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal error")
 
 
 @router.get("/{name}", tags=["Projects"])
@@ -135,7 +135,7 @@ async def get_project(name: str):
         raise
     except Exception as e:
         logger.error(f"Error getting project: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal error")
 
 
 @router.delete("/{name}", tags=["Projects"])
