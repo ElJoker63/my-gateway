@@ -13,33 +13,31 @@ import json
 import logging
 import time
 import uuid
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Header, Request, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.config import get_settings
 from app.models.requests import (
+    AnthropicMessageRequest,
     GatewayChatRequest,
     OpenAIChatRequest,
-    AnthropicMessageRequest,
 )
 from app.models.responses import (
+    AnthropicContentBlock,
+    AnthropicMessageResponse,
+    AnthropicUsage,
     GatewayChatResponse,
     OpenAIChatResponse,
     OpenAIChoice,
-    OpenAIUsage,
-    OpenAIStreamChunk,
     OpenAIStreamChoice,
+    OpenAIStreamChunk,
     OpenAIStreamDelta,
-    AnthropicMessageResponse,
-    AnthropicContentBlock,
-    AnthropicUsage,
+    OpenAIUsage,
 )
 from app.providers import get_provider
 from app.services.cache import get_cached_response, set_cached_response
-from app.services.key_manager import key_manager
 from app.services.context import build_context
+from app.services.key_manager import key_manager
 from app.services.memory import store_memory
 
 logger = logging.getLogger(__name__)
@@ -67,6 +65,7 @@ async def _call_with_fallback(
     (they may echo sensitive request data or provider internals).
     """
     import httpx
+
     from app.services.key_manager import key_manager
 
     last_error = None
@@ -96,7 +95,7 @@ async def _call_with_fallback(
                 raise HTTPException(
                     status_code=502,
                     detail=f"Upstream provider '{provider.name}' returned an error",
-                )
+                ) from e
 
             logger.warning(
                 f"Key {current_key.display} got {status} ({error_type}), "
@@ -107,11 +106,11 @@ async def _call_with_fallback(
             # Try to get another key
             try:
                 current_key = await key_manager.acquire_key(provider.name)
-            except (TimeoutError, RuntimeError) as acquire_err:
+            except (TimeoutError, RuntimeError) as e:
                 raise HTTPException(
                     status_code=429,
                     detail="All API keys for this provider are exhausted — try again later",
-                )
+                ) from e
 
         except HTTPException:
             raise
@@ -120,7 +119,7 @@ async def _call_with_fallback(
             raise HTTPException(
                 status_code=502,
                 detail=f"Upstream provider '{provider.name}' failed",
-            )
+            ) from e
 
     # All retries exhausted
     logger.error(f"LLM call failed after {max_retries} attempts: {last_error}")
@@ -132,16 +131,16 @@ async def _call_with_fallback(
 
 async def _process_chat(
     messages: list[dict],
-    model: Optional[str] = None,
-    provider_name: Optional[str] = None,
+    model: str | None = None,
+    provider_name: str | None = None,
     project: str = "default",
     use_memory: bool = True,
     use_cache: bool = True,
     stream: bool = False,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    top_p: Optional[float] = None,
-    stop: Optional[list[str]] = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    top_p: float | None = None,
+    stop: list[str] | None = None,
     **kwargs,
 ) -> dict:
     """
@@ -182,9 +181,9 @@ async def _process_chat(
     try:
         key_info = await key_manager.acquire_key(provider.name)
     except TimeoutError as e:
-        raise HTTPException(status_code=429, detail="API keys exhausted — try again later")
+        raise HTTPException(status_code=429, detail="API keys exhausted — try again later") from e
     except RuntimeError as e:
-        raise HTTPException(status_code=503, detail="No API keys available for this provider")
+        raise HTTPException(status_code=503, detail="No API keys available for this provider") from e
 
     # --- Step 4: Call LLM provider with acquired key (+ fallback) ---
     result = await _call_with_fallback(
@@ -224,14 +223,14 @@ async def _process_chat(
 
 async def _process_chat_stream(
     messages: list[dict],
-    model: Optional[str] = None,
-    provider_name: Optional[str] = None,
+    model: str | None = None,
+    provider_name: str | None = None,
     project: str = "default",
     use_memory: bool = True,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    top_p: Optional[float] = None,
-    stop: Optional[list[str]] = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    top_p: float | None = None,
+    stop: list[str] | None = None,
     **kwargs,
 ):
     """
@@ -287,7 +286,7 @@ async def _process_chat_stream(
 
         yield "data: [DONE]\n\n"
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Stream error for provider '{provider.name}'")
         error_data = json.dumps({"error": {"message": "Upstream provider stream failed", "type": "stream_error"}})
         yield f"data: {error_data}\n\n"
@@ -302,7 +301,7 @@ async def _process_chat_stream(
 async def openai_chat_completions(
     request: OpenAIChatRequest,
     background_tasks: BackgroundTasks,
-    x_project: Optional[str] = Header(default=None, alias="X-Project"),
+    x_project: str | None = Header(default=None, alias="X-Project"),
 ):
     """
     OpenAI-compatible chat completions endpoint.
@@ -407,7 +406,7 @@ async def openai_chat_completions(
 async def anthropic_messages(
     request: AnthropicMessageRequest,
     background_tasks: BackgroundTasks,
-    x_project: Optional[str] = Header(default=None, alias="X-Project"),
+    x_project: str | None = Header(default=None, alias="X-Project"),
 ):
     """
     Anthropic Messages API compatible endpoint.
@@ -523,7 +522,7 @@ async def gateway_chat(
 async def response_alias(
     request: OpenAIChatRequest,
     background_tasks: BackgroundTasks,
-    x_project: Optional[str] = Header(default=None, alias="X-Project"),
+    x_project: str | None = Header(default=None, alias="X-Project"),
 ):
     """Alias for /v1/chat/completions — some agents use /response."""
     return await openai_chat_completions(request, background_tasks, x_project)

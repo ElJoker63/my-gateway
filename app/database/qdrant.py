@@ -6,16 +6,11 @@ Manages collections and provides connection health checks.
 
 import logging
 import time
-from typing import Optional
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance,
     VectorParams,
-    PointStruct,
-    Filter,
-    FieldCondition,
-    MatchValue,
 )
 
 from app.config import get_settings
@@ -23,7 +18,7 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 # Singleton async client
-_qdrant_client: Optional[AsyncQdrantClient] = None
+_qdrant_client: AsyncQdrantClient | None = None
 
 # Local cache of known collections — avoids a get_collections() round-trip on every write
 _known_collections: set[str] = set()
@@ -73,7 +68,7 @@ async def close_qdrant():
         logger.info("Qdrant client closed")
 
 
-async def ensure_collection(collection_name: str, vector_size: Optional[int] = None):
+async def ensure_collection(collection_name: str, vector_size: int | None = None):
     """Create a Qdrant collection if it doesn't exist (cached locally)."""
     if collection_name in _known_collections:
         return

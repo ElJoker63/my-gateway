@@ -1,8 +1,8 @@
 """Nvidia LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import NVIDIA_BASE_URL, NVIDIA_DEFAULT_MODEL
 
 NvidiaProvider = build_provider_class(

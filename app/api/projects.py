@@ -5,17 +5,16 @@ Project indexing, listing, and management.
 
 import logging
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.config import get_settings
 from app.models.requests import ProjectIndexRequest
 from app.models.responses import ProjectInfoResponse
 from app.services.memory import (
-    list_projects,
-    get_project_stats,
     delete_project_memory,
+    get_project_stats,
+    list_projects,
 )
 from app.workers.tasks import index_project_task
 
@@ -95,6 +94,7 @@ async def get_projects():
     """List all indexed projects with real indexing stats."""
     try:
         import asyncio
+
         from app.database.redis import get_redis
 
         projects = await list_projects()
@@ -131,7 +131,7 @@ async def get_projects():
         }
     except Exception as e:
         logger.error(f"Error listing projects: {e}")
-        raise HTTPException(status_code=500, detail="Internal error")
+        raise HTTPException(status_code=500, detail="Internal error") from e
 
 
 @router.get("/{name}", tags=["Projects"])
@@ -165,7 +165,7 @@ async def get_project(name: str):
         raise
     except Exception as e:
         logger.error(f"Error getting project: {e}")
-        raise HTTPException(status_code=500, detail="Internal error")
+        raise HTTPException(status_code=500, detail="Internal error") from e
 
 
 @router.delete("/{name}", tags=["Projects"])

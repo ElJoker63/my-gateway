@@ -1,8 +1,8 @@
 """Fireworks LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import FIREWORKS_BASE_URL, FIREWORKS_DEFAULT_MODEL
 
 FireworksProvider = build_provider_class(

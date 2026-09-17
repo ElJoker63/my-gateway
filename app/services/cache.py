@@ -8,7 +8,6 @@ in temperature/top_p/etc. never collide.
 import hashlib
 import json
 import logging
-from typing import Optional
 
 from app.config import get_settings
 from app.database.redis import get_redis
@@ -25,7 +24,7 @@ def _build_cache_key(
     messages: list[dict],
     model: str,
     project: str = "default",
-    params: Optional[dict] = None,
+    params: dict | None = None,
 ) -> str:
     """
     Build a deterministic cache key from messages, model, project, and the
@@ -58,8 +57,8 @@ async def get_cached_response(
     messages: list[dict],
     model: str,
     project: str = "default",
-    params: Optional[dict] = None,
-) -> Optional[dict]:
+    params: dict | None = None,
+) -> dict | None:
     """
     Look up a cached LLM response.
 
@@ -90,8 +89,8 @@ async def set_cached_response(
     model: str,
     response: dict,
     project: str = "default",
-    ttl: Optional[int] = None,
-    params: Optional[dict] = None,
+    ttl: int | None = None,
+    params: dict | None = None,
 ):
     """
     Store an LLM response in cache.

@@ -4,7 +4,6 @@ Automatically enriches LLM requests with relevant project memory and context.
 """
 
 import logging
-from typing import Optional, Union
 
 from app.config import get_settings
 from app.services.memory import search_memory
@@ -12,7 +11,7 @@ from app.services.memory import search_memory
 logger = logging.getLogger(__name__)
 
 
-def extract_text_content(content: Union[str, list, None]) -> str:
+def extract_text_content(content: str | list | None) -> str:
     """
     Normalize message content to plain text.
 
@@ -91,8 +90,8 @@ async def build_context(
     # Build context block
     context_parts = [
         f"[Gateway Context — Project: {project}]",
-        f"The following is relevant context retrieved from the project's memory.",
-        f"Use it to inform your response, but only if relevant to the user's question.",
+        "The following is relevant context retrieved from the project's memory.",
+        "Use it to inform your response, but only if relevant to the user's question.",
         "",
     ]
 

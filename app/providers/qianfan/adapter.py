@@ -1,8 +1,8 @@
 """Qianfan LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import QIANFAN_BASE_URL, QIANFAN_DEFAULT_MODEL
 
 QianfanProvider = build_provider_class(

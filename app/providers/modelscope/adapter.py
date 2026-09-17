@@ -1,8 +1,8 @@
 """ModelScope LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import MODELSCOPE_BASE_URL, MODELSCOPE_DEFAULT_MODEL
 
 ModelScopeProvider = build_provider_class(

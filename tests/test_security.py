@@ -2,12 +2,10 @@
 Security tests: auth middleware, body size limit, and path traversal protection.
 """
 
-import os
 import pytest
-from httpx import AsyncClient, ASGITransport
-
-from app.main import app
 from app.config import get_settings
+from app.main import app
+from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture

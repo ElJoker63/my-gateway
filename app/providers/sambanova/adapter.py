@@ -1,8 +1,8 @@
 """SambaNova LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import SAMBANOVA_BASE_URL, SAMBANOVA_DEFAULT_MODEL
 
 SambaNovaProvider = build_provider_class(

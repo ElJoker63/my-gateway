@@ -1,8 +1,8 @@
 """MiniMax LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import MINIMAX_BASE_URL, MINIMAX_DEFAULT_MODEL
 
 MiniMaxProvider = build_provider_class(

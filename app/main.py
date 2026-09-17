@@ -8,19 +8,20 @@ authentication, and health checks.
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request, Security
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
 from fastapi.responses import JSONResponse
+from fastapi.security import APIKeyHeader
 
-from app.config import get_settings
 from app.api import api_router
-from app.database.redis import init_redis, close_redis, redis_health_check
-from app.database.qdrant import init_qdrant, close_qdrant, qdrant_health_check
-from app.providers import init_providers, close_providers
+from app.config import get_settings
+from app.database.qdrant import close_qdrant, init_qdrant, qdrant_health_check
+from app.database.redis import close_redis, init_redis, redis_health_check
 from app.models.responses import HealthResponse, ServiceHealth
+from app.providers import close_providers, init_providers
+from app.version import APP_NAME
+from app.version import VERSION as APP_VERSION
 
 # Configure logging
 settings = get_settings()
@@ -97,12 +98,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="My Gateway AI",
+    title=APP_NAME,
     description=(
         "Intelligent multi-provider gateway & orchestration platform for AI coding agents and LLM providers. "
         "Provides caching, rate limiting, vector memory, key rotation, and context enrichment."
     ),
-    version="1.0.0",
+    version=APP_VERSION,
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -228,7 +229,7 @@ async def health_check():
 
     return HealthResponse(
         status=overall,
-        version="1.0.0",
+        version=APP_VERSION,
         services=services,
     )
 
@@ -239,7 +240,7 @@ async def health_check():
 
 
 @app.get("/api/keys/status", tags=["System"])
-async def key_pool_status(provider: Optional[str] = None):
+async def key_pool_status(provider: str | None = None):
     """
     Get API key pool status for a provider or all providers.
     Shows per-key usage, rate limits, and availability.
@@ -257,7 +258,7 @@ async def key_pool_status(provider: Optional[str] = None):
 
 
 @app.get("/api/rate-limit", tags=["System"], deprecated=True, include_in_schema=False)
-async def rate_limit_status(provider: Optional[str] = None):
+async def rate_limit_status(provider: str | None = None):
     """Deprecated: use /api/keys/status instead."""
     from app.services.key_manager import key_manager
 

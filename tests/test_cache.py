@@ -1,14 +1,14 @@
 """Tests for the cache service."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from app.services.cache import (
     _build_cache_key,
+    get_cache_stats,
     get_cached_response,
     set_cached_response,
-    get_cache_stats,
 )
 
 

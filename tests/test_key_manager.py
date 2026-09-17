@@ -1,13 +1,13 @@
 """Tests for the KeyManager service."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from app.services.key_manager import (
-    KeyManager,
-    mask_key,
-    key_fingerprint,
     KeyInfo,
+    KeyManager,
+    key_fingerprint,
+    mask_key,
 )
 
 
@@ -57,7 +57,7 @@ class TestKeyManagerUnit:
             pool=MagicMock(),
             strategy="least_used",
         )
-        assert [k for k, _ in ordered][0].key == "k2"
+        assert next(k for k, _ in ordered).key == "k2"
 
     def test_order_candidates_round_robin_rotates(self):
         """Round-robin must rotate the starting candidate."""
@@ -153,9 +153,8 @@ class TestKeyManagerAsync:
         with patch.object(km, "_get_key_status", new=AsyncMock(return_value={
             "requests_used": 0, "rate_limited": False,
             "retry_after_seconds": 0.0, "in_cooldown": True,
-        })):
-            with pytest.raises(RuntimeError, match="error cooldown"):
-                await km.acquire_key("nvidia")
+        })), pytest.raises(RuntimeError, match="error cooldown"):
+            await km.acquire_key("nvidia")
 
     async def test_try_acquire_acquired(self):
         """_try_acquire maps status 1 to 'acquired' and records usage."""

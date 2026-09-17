@@ -1,8 +1,8 @@
 """Tests for the context builder service."""
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from app.services.context import build_context, extract_text_content
 
 
@@ -57,4 +57,5 @@ class TestBuildContext:
     async def test_default_project_skips_memory(self):
         with patch("app.services.context.search_memory", new=AsyncMock()) as sm:
             out = await build_context([{"role": "user", "content": "q"}], project="default")
+            assert out == [{"role": "user", "content": "q"}]
             sm.assert_not_called()

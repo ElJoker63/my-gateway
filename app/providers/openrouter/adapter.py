@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import OPENROUTER_BASE_URL, OPENROUTER_DEFAULT_MODEL
 
 OpenRouterProvider = build_provider_class(

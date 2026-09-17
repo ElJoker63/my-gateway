@@ -12,7 +12,6 @@ import fnmatch
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 from app.config import get_settings
 from app.services.memory import store_memories_batch
@@ -138,7 +137,7 @@ def _chunk_text(text: str, max_chunk_size: int = 1500, overlap: int = 200) -> li
 
 def _scan_project_files(
     path: str,
-    file_patterns: Optional[list[str]],
+    file_patterns: list[str] | None,
     ignore_patterns: list[str],
     max_file_size: int,
 ) -> tuple[list[dict], int, int, int]:
@@ -168,10 +167,9 @@ def _scan_project_files(
                 files_skipped += 1
                 continue
 
-            if file_patterns:
-                if not any(fnmatch.fnmatch(filename, p) for p in file_patterns):
-                    files_skipped += 1
-                    continue
+            if file_patterns and not any(fnmatch.fnmatch(filename, p) for p in file_patterns):
+                files_skipped += 1
+                continue
 
             if not _is_text_file(filepath):
                 files_skipped += 1
@@ -187,7 +185,7 @@ def _scan_project_files(
                 continue
 
             try:
-                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                with open(filepath, encoding="utf-8", errors="ignore") as f:
                     content = f.read()
 
                 if not content.strip():
@@ -225,7 +223,7 @@ def _scan_project_files(
 async def index_project_task(
     path: str,
     project_name: str,
-    file_patterns: Optional[list[str]] = None,
+    file_patterns: list[str] | None = None,
 ):
     """
     Background task to index a project directory.
@@ -264,6 +262,7 @@ async def index_project_task(
     # Persist indexing stats so the projects API reports real numbers
     try:
         import time
+
         from app.database.redis import get_redis
         redis = await get_redis()
         await redis.hset(

@@ -6,11 +6,12 @@ Supports per-request API key authentication and multi-key pool rotation.
 
 import json
 import logging
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 import httpx
 
 from app.config import get_settings
+
 from .base import LLMProvider
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class OllamaProvider(LLMProvider):
             "tool_calling": True,
         }
         self.embedding_model = getattr(settings, "ollama_embedding_model", "") or ""
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the shared httpx client."""
@@ -46,19 +47,19 @@ class OllamaProvider(LLMProvider):
             )
         return self._client
 
-    def _resolve_key(self, api_key: Optional[str]) -> str:
+    def _resolve_key(self, api_key: str | None) -> str:
         """Resolve API key for Ollama Cloud."""
         return api_key or self.api_key
 
     async def chat(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> dict:
         """Send a non-streaming chat completion request to Ollama Cloud."""
@@ -103,12 +104,12 @@ class OllamaProvider(LLMProvider):
     async def chat_stream(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> AsyncIterator[dict]:
         """Send a streaming chat completion request to Ollama Cloud."""

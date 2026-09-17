@@ -1,8 +1,8 @@
 """Groq LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import GROQ_BASE_URL, GROQ_DEFAULT_MODEL
 
 GroqProvider = build_provider_class(

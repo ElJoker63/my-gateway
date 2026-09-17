@@ -4,17 +4,16 @@ CRUD operations for the vector memory system.
 """
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.models.requests import MemoryStoreRequest, MemorySearchRequest
+from app.models.requests import MemorySearchRequest, MemoryStoreRequest
 from app.models.responses import MemoryEntry, MemorySearchResponse
 from app.services.memory import (
-    store_memory,
-    search_memory,
-    get_project_memories,
     delete_project_memory,
+    get_project_memories,
+    search_memory,
+    store_memory,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,7 @@ async def store_memory_endpoint(request: MemoryStoreRequest):
         }
     except Exception as e:
         logger.error(f"Memory store error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to store memory")
+        raise HTTPException(status_code=500, detail="Failed to store memory") from e
 
 
 @router.post("/search", response_model=MemorySearchResponse, tags=["Memory"])
@@ -63,7 +62,7 @@ async def search_memory_endpoint(request: MemorySearchRequest):
         )
     except Exception as e:
         logger.error(f"Memory search error: {e}")
-        raise HTTPException(status_code=500, detail="Memory search failed")
+        raise HTTPException(status_code=500, detail="Memory search failed") from e
 
 
 @router.get("/project/{project}", tags=["Memory"])
@@ -81,7 +80,7 @@ async def get_project_memories_endpoint(
         }
     except Exception as e:
         logger.error(f"Error getting project memories: {e}")
-        raise HTTPException(status_code=500, detail="Internal error")
+        raise HTTPException(status_code=500, detail="Internal error") from e
 
 
 @router.delete("/project/{project}", tags=["Memory"])

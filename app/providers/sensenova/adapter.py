@@ -1,8 +1,8 @@
 """SenseNova LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import SENSENOVA_BASE_URL, SENSENOVA_DEFAULT_MODEL
 
 SenseNovaProvider = build_provider_class(

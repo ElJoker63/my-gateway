@@ -9,6 +9,8 @@ import asyncio
 import logging
 from typing import Optional
 
+import httpx
+
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -108,8 +110,6 @@ async def _get_nvidia_client() -> "httpx.AsyncClient":
     """Return a shared async HTTP client for the NVIDIA embeddings API."""
     global _nvidia_client
     if _nvidia_client is None or _nvidia_client.is_closed:
-        import httpx
-
         _nvidia_client = httpx.AsyncClient(timeout=60.0)
     return _nvidia_client
 

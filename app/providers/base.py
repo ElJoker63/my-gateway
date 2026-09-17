@@ -4,7 +4,7 @@ All providers must implement this interface.
 """
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 
 class LLMProvider(ABC):
@@ -16,12 +16,12 @@ class LLMProvider(ABC):
     async def chat(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> dict:
         """
@@ -43,12 +43,12 @@ class LLMProvider(ABC):
     async def chat_stream(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> AsyncIterator[dict]:
         """
@@ -72,14 +72,14 @@ class LLMProvider(ABC):
     async def embeddings(
         self,
         input_text: str | list[str],
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> dict:
         """Generate text embeddings."""
         raise NotImplementedError(f"Embeddings not implemented for provider '{self.name}'")
 
-    async def list_models(self, api_key: Optional[str] = None) -> list[dict]:
+    async def list_models(self, api_key: str | None = None) -> list[dict]:
         """Fetch available models dynamically from provider endpoint."""
         return []
 
@@ -102,11 +102,11 @@ class LLMProvider(ABC):
     def _build_params(
         self,
         messages: list[dict],
-        model: Optional[str],
-        temperature: Optional[float],
-        max_tokens: Optional[int],
-        top_p: Optional[float],
-        stop: Optional[list[str]],
+        model: str | None,
+        temperature: float | None,
+        max_tokens: int | None,
+        top_p: float | None,
+        stop: list[str] | None,
         stream: bool = False,
         **kwargs,
     ) -> dict:

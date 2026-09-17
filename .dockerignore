@@ -1,14 +1,40 @@
+# Version control and metadata
+.git/
+.gitignore
+.gitattributes
+
+# Secrets — never ship into an image
+.env
+.env.*
+!.env.example
+
+# Test / dev artifacts
+tests/
+pytest.ini
+.mypy_cache/
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+# Docs and site
+docs/
+mkdocs.yml
+MEJORAS.md
+
+# Python noise
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
-.git/
-.gitignore
-data/
-*.md
-tests/
-.mypy_cache/
-.pytest_cache/
-.tox/
+
+# Virtualenvs
 .venv/
 venv/
+
+# Local data
+data/
+
+# Editors
+.idea/
+.vscode/

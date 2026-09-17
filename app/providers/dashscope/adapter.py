@@ -1,8 +1,8 @@
 """DashScope LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import DASHSCOPE_BASE_URL, DASHSCOPE_DEFAULT_MODEL
 
 DashScopeProvider = build_provider_class(

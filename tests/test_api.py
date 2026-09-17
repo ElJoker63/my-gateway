@@ -1,7 +1,8 @@
 """Tests for API endpoints."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 
 @pytest.mark.asyncio
@@ -130,8 +131,8 @@ class TestAuthMiddleware:
 
     async def test_public_health_no_auth(self):
         """Health endpoint should not require auth."""
-        from httpx import AsyncClient, ASGITransport
         from app.main import app
+        from httpx import ASGITransport, AsyncClient
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

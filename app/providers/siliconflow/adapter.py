@@ -1,8 +1,8 @@
 """SiliconFlow LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import SILICONFLOW_BASE_URL, SILICONFLOW_DEFAULT_MODEL
 
 SiliconFlowProvider = build_provider_class(

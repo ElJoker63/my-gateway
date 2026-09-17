@@ -1,8 +1,8 @@
 """LingyiWanwu LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import LINGYIWANWU_BASE_URL, LINGYIWANWU_DEFAULT_MODEL
 
 LingyiWanwuProvider = build_provider_class(

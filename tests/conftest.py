@@ -1,9 +1,10 @@
 """Test configuration and shared fixtures."""
 
 import os
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 
 # Set test environment variables BEFORE importing app modules
 os.environ.update({
@@ -20,9 +21,9 @@ os.environ.update({
     "LOG_LEVEL": "DEBUG",
 })
 
-from httpx import AsyncClient, ASGITransport
+from app.config import get_settings
 from app.main import app
-from app.config import get_settings, Settings
+from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture(autouse=True)

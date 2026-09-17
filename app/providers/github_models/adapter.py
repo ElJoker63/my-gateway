@@ -1,8 +1,8 @@
 """GithubModels LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import GITHUB_MODELS_BASE_URL, GITHUB_MODELS_DEFAULT_MODEL
 
 GithubModelsProvider = build_provider_class(

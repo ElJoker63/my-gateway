@@ -6,18 +6,17 @@ Stores and retrieves project memories using semantic embeddings.
 import hashlib
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from qdrant_client.models import (
-    PointStruct,
-    Filter,
     FieldCondition,
+    Filter,
     MatchValue,
+    PointStruct,
 )
 
 from app.config import get_settings
-from app.database.qdrant import get_qdrant, ensure_collection, forget_collection
+from app.database.qdrant import ensure_collection, forget_collection, get_qdrant
 from app.services.embedding import get_embedding, get_embeddings_batch
 
 logger = logging.getLogger(__name__)
@@ -38,9 +37,9 @@ def _collection_name(project: str) -> str:
 async def store_memory(
     text: str,
     project: str,
-    file: Optional[str] = None,
+    file: str | None = None,
     memory_type: str = "general",
-    metadata: Optional[dict] = None,
+    metadata: dict | None = None,
 ) -> str:
     """
     Store a single memory entry in Qdrant.
@@ -67,7 +66,7 @@ async def store_memory(
         "project": project,
         "file": file or "",
         "type": memory_type,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     if metadata:
         payload["metadata"] = metadata
@@ -113,14 +112,14 @@ async def store_memories_batch(
     vectors = await get_embeddings_batch(texts)
 
     points = []
-    for entry, vector in zip(entries, vectors):
+    for entry, vector in zip(entries, vectors, strict=True):
         point_id = str(uuid.uuid4())
         payload = {
             "text": entry["text"],
             "project": project,
             "file": entry.get("file", ""),
             "type": entry.get("type", "general"),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         if entry.get("metadata"):
             payload["metadata"] = entry["metadata"]
@@ -140,10 +139,10 @@ async def store_memories_batch(
 
 async def search_memory(
     query: str,
-    project: Optional[str] = None,
-    memory_type: Optional[str] = None,
+    project: str | None = None,
+    memory_type: str | None = None,
     top_k: int = 10,
-    score_threshold: Optional[float] = None,
+    score_threshold: float | None = None,
 ) -> list[dict]:
     """
     Search memory using semantic similarity.
@@ -202,7 +201,7 @@ async def search_memory(
     )
 
     matches: list[dict] = []
-    for collection, outcome in zip(collections, results):
+    for collection, outcome in zip(collections, results, strict=True):
         if isinstance(outcome, Exception):
             logger.error(f"Search error in collection '{collection}': {outcome}")
             continue

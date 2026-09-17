@@ -1,6 +1,5 @@
 """Config must scale to all providers via env vars, not just the typed 4."""
 
-import os
 from app.config import Settings
 
 

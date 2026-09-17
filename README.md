@@ -17,8 +17,16 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 - **Vector Memory** — Per-project persistent memory using Qdrant
 - **Context Enrichment** — Automatically injects relevant project context into LLM requests
 - **Project Indexing** — Scan and index entire codebases for memory
-- **Multi-Provider** — NVIDIA API, OpenAI-compatible, Groq, Ollama Cloud (and remote instances), easily extensible
+- **Multi-Provider** — 25 providers: NVIDIA, OpenAI, Groq, Ollama, OpenRouter, Google, Cloudflare, DeepSeek, and more (any OpenAI-compatible endpoint)
+- **Hardened Security** — Dedicated gateway API key, CORS allowlist, request size limits, path-restricted project indexing
 - **Dockerized** — One command to run everything
+
+## 🔒 Security
+
+- Set `GATEWAY_API_KEY` before exposing the service — with no key configured, auth is **disabled** and the gateway logs a loud warning at startup (local-only development mode).
+- Provider API keys (`NVIDIA_API_KEY`, `OPENAI_API_KEY`, ...) are **never** accepted as gateway credentials.
+- Project indexing is disabled until you configure `ALLOWED_INDEX_ROOTS` with the directories the gateway may scan.
+- CORS allowlist via `CORS_ALLOWED_ORIGINS`; request bodies limited by `MAX_REQUEST_SIZE_MB`.
 
 ## 🏗️ Architecture
 

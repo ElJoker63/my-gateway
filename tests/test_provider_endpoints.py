@@ -1,8 +1,6 @@
 """Regression tests for provider endpoints previously pointing to wrong APIs."""
 
-import os
 import importlib
-import pytest
 
 
 class TestFixedProviderEndpoints:

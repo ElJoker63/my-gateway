@@ -1,12 +1,12 @@
 """Tests for LLM providers."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from app.providers import get_provider, init_providers, list_providers
 from app.providers.base import LLMProvider
 from app.providers.nvidia import NvidiaProvider
 from app.providers.openai import OpenAIProvider
-from app.providers import get_provider, init_providers, list_providers
 
 
 class TestLLMProviderBase:
@@ -159,7 +159,7 @@ class TestProviderRegistry:
 
     def test_key_injection_at_init(self):
         """init_providers must inject the first pool key into the adapter."""
-        from app.providers import PROVIDER_CLASSES, _providers
+        from app.providers import _providers
         init_providers()
         nvidia = _providers["nvidia"]
         # conftest sets NVIDIA_API_KEY=test-nvidia-key

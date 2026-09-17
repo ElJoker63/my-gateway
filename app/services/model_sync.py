@@ -5,7 +5,6 @@ exposed to /v1/models and diagnostics. In-memory only — rebuilt on startup.
 """
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ def register_provider_metadata(provider_name: str, metadata: dict):
     _METADATA_CACHE[provider_name] = metadata
 
 
-def get_provider_metadata(provider_name: Optional[str] = None) -> dict:
+def get_provider_metadata(provider_name: str | None = None) -> dict:
     """Get metadata for a provider, or all providers when no name is given."""
     if provider_name:
         return _METADATA_CACHE.get(provider_name, {})

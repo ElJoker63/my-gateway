@@ -1,9 +1,8 @@
 """Response schemas for all API endpoints."""
 
-from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from pydantic import BaseModel, Field
 
 # --- Gateway Simplified Chat Response ---
 
@@ -12,8 +11,8 @@ class GatewayChatResponse(BaseModel):
     response: str
     provider: str
     cached: bool = False
-    project: Optional[str] = None
-    usage: Optional[dict] = None
+    project: str | None = None
+    usage: dict | None = None
 
 
 # --- OpenAI-Compatible Chat Response ---
@@ -29,7 +28,7 @@ class OpenAIChoice(BaseModel):
     """Single completion choice."""
     index: int = 0
     message: dict = Field(default_factory=lambda: {"role": "assistant", "content": ""})
-    finish_reason: Optional[str] = "stop"
+    finish_reason: str | None = "stop"
 
 
 class OpenAIChatResponse(BaseModel):
@@ -40,7 +39,7 @@ class OpenAIChatResponse(BaseModel):
     model: str
     choices: list[OpenAIChoice]
     usage: OpenAIUsage = Field(default_factory=OpenAIUsage)
-    system_fingerprint: Optional[str] = None
+    system_fingerprint: str | None = None
 
     # Gateway extensions
     cached: bool = False
@@ -51,15 +50,15 @@ class OpenAIChatResponse(BaseModel):
 
 class OpenAIStreamDelta(BaseModel):
     """Delta content in a stream chunk."""
-    role: Optional[str] = None
-    content: Optional[str] = None
+    role: str | None = None
+    content: str | None = None
 
 
 class OpenAIStreamChoice(BaseModel):
     """Single choice in a stream chunk."""
     index: int = 0
     delta: OpenAIStreamDelta = Field(default_factory=OpenAIStreamDelta)
-    finish_reason: Optional[str] = None
+    finish_reason: str | None = None
 
 
 class OpenAIStreamChunk(BaseModel):
@@ -69,7 +68,7 @@ class OpenAIStreamChunk(BaseModel):
     created: int
     model: str
     choices: list[OpenAIStreamChoice]
-    system_fingerprint: Optional[str] = None
+    system_fingerprint: str | None = None
 
 
 # --- Anthropic Messages Response ---
@@ -93,8 +92,8 @@ class AnthropicMessageResponse(BaseModel):
     role: str = "assistant"
     content: list[AnthropicContentBlock]
     model: str
-    stop_reason: Optional[str] = "end_turn"
-    stop_sequence: Optional[str] = None
+    stop_reason: str | None = "end_turn"
+    stop_sequence: str | None = None
     usage: AnthropicUsage = Field(default_factory=AnthropicUsage)
 
 
@@ -105,11 +104,11 @@ class MemoryEntry(BaseModel):
     id: str
     text: str
     project: str
-    file: Optional[str] = None
+    file: str | None = None
     type: str = "general"
     score: float = 0.0
     timestamp: str = ""
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
 
 
 class MemorySearchResponse(BaseModel):
@@ -126,7 +125,7 @@ class ProjectInfoResponse(BaseModel):
     name: str
     files_indexed: int = 0
     memory_count: int = 0
-    last_indexed: Optional[str] = None
+    last_indexed: str | None = None
     status: str = "active"
 
 
@@ -135,8 +134,8 @@ class ProjectInfoResponse(BaseModel):
 class ServiceHealth(BaseModel):
     """Health status of a single service."""
     status: str = "healthy"
-    latency_ms: Optional[float] = None
-    error: Optional[str] = None
+    latency_ms: float | None = None
+    error: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -144,7 +143,7 @@ class HealthResponse(BaseModel):
     status: str = "healthy"
     version: str = "1.0.0"
     services: dict[str, ServiceHealth] = Field(default_factory=dict)
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 # --- Rate Limit ---

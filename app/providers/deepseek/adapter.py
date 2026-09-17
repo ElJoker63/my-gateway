@@ -1,8 +1,8 @@
 """DeepSeek LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import DEEPSEEK_BASE_URL, DEEPSEEK_DEFAULT_MODEL
 
 DeepSeekProvider = build_provider_class(

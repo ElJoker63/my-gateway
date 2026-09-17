@@ -1,14 +1,14 @@
 """Tests for the memory service (async Qdrant client)."""
 
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from app.services.memory import (
     _collection_name,
-    store_memory,
-    search_memory,
-    list_projects,
     delete_project_memory,
+    list_projects,
+    search_memory,
+    store_memory,
 )
 
 

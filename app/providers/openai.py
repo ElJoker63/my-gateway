@@ -6,11 +6,12 @@ Supports per-request API key injection from the KeyManager.
 
 import json
 import logging
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 import httpx
 
 from app.config import get_settings
+
 from .base import LLMProvider
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class OpenAIProvider(LLMProvider):
             "tool_calling": True,
         }
         self.embedding_model = getattr(settings, "openai_embedding_model", "") or ""
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the shared httpx client (without auth headers)."""
@@ -46,19 +47,19 @@ class OpenAIProvider(LLMProvider):
             )
         return self._client
 
-    def _resolve_key(self, api_key: Optional[str]) -> str:
+    def _resolve_key(self, api_key: str | None) -> str:
         """Resolve which API key to use for a request."""
         return api_key or self.api_key
 
     async def chat(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> dict:
         """Send a non-streaming chat completion request."""
@@ -102,12 +103,12 @@ class OpenAIProvider(LLMProvider):
     async def chat_stream(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> AsyncIterator[dict]:
         """Send a streaming chat completion request."""

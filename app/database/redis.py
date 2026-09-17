@@ -5,7 +5,6 @@ Provides a singleton Redis connection used across the application.
 
 import logging
 import time
-from typing import Optional
 
 import redis.asyncio as aioredis
 
@@ -14,7 +13,7 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 # Singleton connection pool
-_redis_pool: Optional[aioredis.Redis] = None
+_redis_pool: aioredis.Redis | None = None
 
 
 async def get_redis() -> aioredis.Redis:

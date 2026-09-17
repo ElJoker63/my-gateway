@@ -1,8 +1,8 @@
 """Hyperbolic LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import HYPERBOLIC_BASE_URL, HYPERBOLIC_DEFAULT_MODEL
 
 HyperbolicProvider = build_provider_class(

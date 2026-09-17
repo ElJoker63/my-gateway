@@ -4,41 +4,41 @@ Manages provider instances and registers key pools with the KeyManager across al
 """
 
 import logging
-from typing import Optional
 
 from app.config import get_settings
 from app.services.model_sync import register_provider_metadata
+
 from .base import LLMProvider
+from .chutes import ChutesProvider
+from .cloudflare import CloudflareProvider
+from .dashscope import DashScopeProvider
+from .deepseek import DeepSeekProvider
+from .fireworks import FireworksProvider
+from .github_models import GithubModelsProvider
+from .google import GoogleProvider
+from .groq import GroqProvider
+from .hunyuan import HunyuanProvider
+from .hyperbolic import HyperbolicProvider
+from .lingyiwanwu import LingyiWanwuProvider
+from .minimax import MiniMaxProvider
+from .modelscope import ModelScopeProvider
+from .moonshot import MoonshotProvider
 
 # Legacy root providers
 from .nvidia import NvidiaProvider
-from .openai import OpenAIProvider
-from .groq import GroqProvider
 from .ollama import OllamaProvider
+from .openai import OpenAIProvider
+from .opencode import OpenCodeProvider
 
 # Package-based providers
 from .openrouter import OpenRouterProvider
-from .google import GoogleProvider
-from .cloudflare import CloudflareProvider
-from .github_models import GithubModelsProvider
-from .sambanova import SambaNovaProvider
-from .chutes import ChutesProvider
-from .fireworks import FireworksProvider
-from .hyperbolic import HyperbolicProvider
-from .opencode import OpenCodeProvider
-from .deepseek import DeepSeekProvider
-from .siliconflow import SiliconFlowProvider
-from .modelscope import ModelScopeProvider
-from .zhipu import ZhipuProvider
-from .moonshot import MoonshotProvider
-from .minimax import MiniMaxProvider
-from .dashscope import DashScopeProvider
-from .hunyuan import HunyuanProvider
 from .qianfan import QianfanProvider
+from .sambanova import SambaNovaProvider
 from .sensenova import SenseNovaProvider
+from .siliconflow import SiliconFlowProvider
 from .stepfun import StepFunProvider
-from .lingyiwanwu import LingyiWanwuProvider
 from .volcengine import VolcengineProvider
+from .zhipu import ZhipuProvider
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ def init_providers():
 
 
 
-def get_provider(name: Optional[str] = None) -> LLMProvider:
+def get_provider(name: str | None = None) -> LLMProvider:
     """Get a provider by name, falling back to default."""
     if not _providers:
         init_providers()

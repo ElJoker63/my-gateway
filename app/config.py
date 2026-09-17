@@ -4,11 +4,11 @@ All settings loaded from environment variables with sensible defaults.
 """
 
 import json
-from typing import Annotated, Optional
-
-from pydantic_settings import BaseSettings, NoDecode
-from pydantic import Field, field_validator
 from functools import lru_cache
+from typing import Annotated
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode
 
 
 class Settings(BaseSettings):
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     )
 
     # --- Default Provider ---
-    default_provider: str = Field(default="nvidia", description="Default LLM provider (nvidia, openai)")
+    default_provider: str = Field(default="nvidia", description="Default LLM provider when the request does not specify one")
 
     # --- Rate Limiting ---
     max_requests_per_minute: int = Field(default=35, description="Max requests per minute to LLM provider")

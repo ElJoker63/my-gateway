@@ -22,7 +22,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Type
 
 from app.providers.openai_adapter import OpenAIAdapter
 
@@ -33,7 +32,7 @@ def _load_capabilities(metadata_path: Path) -> dict:
     """Load the capabilities block from a provider's metadata.json (if present)."""
     try:
         if metadata_path.exists():
-            with open(metadata_path, "r", encoding="utf-8") as f:
+            with open(metadata_path, encoding="utf-8") as f:
                 return json.load(f).get("capabilities", {}) or {}
     except Exception as e:
         logger.warning(f"Failed to load metadata at {metadata_path}: {e}")
@@ -45,9 +44,9 @@ def build_provider_class(
     base_url: str,
     default_model: str,
     package_dir: str,
-    extra_headers: Optional[dict] = None,
-    class_name: Optional[str] = None,
-) -> Type[OpenAIAdapter]:
+    extra_headers: dict | None = None,
+    class_name: str | None = None,
+) -> type[OpenAIAdapter]:
     """
     Build an OpenAIAdapter subclass preconfigured for a provider.
 

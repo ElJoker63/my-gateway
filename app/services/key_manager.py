@@ -17,7 +17,6 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 from app.config import get_settings
 from app.database.redis import get_redis
@@ -119,7 +118,7 @@ class KeyManager:
 
     def __init__(self):
         self._pools: dict[str, KeyPool] = {}
-        self._lua_sha: Optional[str] = None
+        self._lua_sha: str | None = None
 
     # =========================================================================
     # Registration
@@ -129,7 +128,7 @@ class KeyManager:
         self,
         provider: str,
         keys: list[str],
-        rpm_per_key: Optional[int] = None,
+        rpm_per_key: int | None = None,
     ):
         """
         Register a pool of API keys for a provider.
@@ -174,7 +173,7 @@ class KeyManager:
         """Check if a provider has a registered key pool."""
         return provider in self._pools and len(self._pools[provider].keys) > 0
 
-    def get_any_key(self, provider: str) -> Optional[str]:
+    def get_any_key(self, provider: str) -> str | None:
         """Get any raw key for a provider (for health checks, etc)."""
         pool = self._pools.get(provider)
         if pool and pool.keys:
@@ -220,7 +219,7 @@ class KeyManager:
             rate_limited: list[KeyInfo] = []
             earliest_retry = float("inf")
 
-            for ki, status in zip(pool.keys, statuses):
+            for ki, status in zip(pool.keys, statuses, strict=True):
                 if status["in_cooldown"]:
                     continue
                 if status["rate_limited"]:
@@ -453,7 +452,7 @@ class KeyManager:
         key_statuses = []
         available = 0
 
-        for ki, status in zip(pool.keys, statuses):
+        for ki, status in zip(pool.keys, statuses, strict=True):
             if status["in_cooldown"]:
                 state = "cooldown"
             elif status["rate_limited"]:

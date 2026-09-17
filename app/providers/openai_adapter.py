@@ -5,8 +5,9 @@ Used by providers with OpenAI-compliant REST endpoints (Groq, DeepSeek, OpenRout
 
 import json
 import logging
+from collections.abc import AsyncIterator
+
 import httpx
-from typing import AsyncIterator, Optional
 
 from app.providers.base import LLMProvider
 
@@ -23,9 +24,9 @@ class OpenAIAdapter(LLMProvider):
         default_model: str,
         default_api_key: str = "",
         timeout: float = 60.0,
-        extra_headers: Optional[dict] = None,
-        capabilities: Optional[dict] = None,
-        embedding_model: Optional[str] = None,
+        extra_headers: dict | None = None,
+        capabilities: dict | None = None,
+        embedding_model: str | None = None,
     ):
         self.name = name
         self.base_url = base_url.rstrip("/")
@@ -44,7 +45,7 @@ class OpenAIAdapter(LLMProvider):
         }
         self.client = httpx.AsyncClient(timeout=self.timeout)
 
-    def _get_headers(self, api_key: Optional[str] = None) -> dict:
+    def _get_headers(self, api_key: str | None = None) -> dict:
         key = api_key or self.default_api_key
         headers = {
             "Authorization": f"Bearer {key}",
@@ -56,12 +57,12 @@ class OpenAIAdapter(LLMProvider):
     async def chat(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> dict:
         url = f"{self.base_url}/chat/completions"
@@ -96,12 +97,12 @@ class OpenAIAdapter(LLMProvider):
     async def chat_stream(
         self,
         messages: list[dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        top_p: Optional[float] = None,
-        stop: Optional[list[str]] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        top_p: float | None = None,
+        stop: list[str] | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> AsyncIterator[dict]:
         url = f"{self.base_url}/chat/completions"
@@ -147,8 +148,8 @@ class OpenAIAdapter(LLMProvider):
     async def embeddings(
         self,
         input_text: str | list[str],
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        api_key: str | None = None,
         **kwargs,
     ) -> dict:
         if not self.capabilities.get("embeddings", False):
@@ -175,7 +176,7 @@ class OpenAIAdapter(LLMProvider):
         response.raise_for_status()
         return response.json()
 
-    async def list_models(self, api_key: Optional[str] = None) -> list[dict]:
+    async def list_models(self, api_key: str | None = None) -> list[dict]:
         url = f"{self.base_url}/models"
         headers = self._get_headers(api_key)
         response = await self.client.get(url, headers=headers)

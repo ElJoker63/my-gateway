@@ -1,8 +1,8 @@
 """OpenCode LLM Provider Adapter (generated via factory)."""
-import os
 from pathlib import Path
 
 from app.providers.factory import build_provider_class
+
 from .config import OPENCODE_BASE_URL, OPENCODE_DEFAULT_MODEL
 
 OpenCodeProvider = build_provider_class(
