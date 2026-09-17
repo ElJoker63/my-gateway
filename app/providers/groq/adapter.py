@@ -1,26 +1,14 @@
-"""Groq LLM Provider Adapter."""
-import json
+"""Groq LLM Provider Adapter (generated via factory)."""
 import os
 from pathlib import Path
-from app.providers.openai_adapter import OpenAIAdapter
+
+from app.providers.factory import build_provider_class
 from .config import GROQ_BASE_URL, GROQ_DEFAULT_MODEL
 
-class GroqProvider(OpenAIAdapter):
-    """Groq Cloud API provider."""
-
-    def __init__(self, api_key: str = ""):
-        metadata_file = Path(__file__).parent / "metadata.json"
-        capabilities = {}
-        if metadata_file.exists():
-            with open(metadata_file, "r") as f:
-                metadata = json.load(f)
-                capabilities = metadata.get("capabilities", {})
-
-        super().__init__(
-            name="groq",
-            base_url=GROQ_BASE_URL,
-            default_model=GROQ_DEFAULT_MODEL,
-            default_api_key=api_key,
-            capabilities=capabilities,
-            embedding_model=os.getenv("GROQ_EMBEDDING_MODEL", ""),
-        )
+GroqProvider = build_provider_class(
+    name="groq",
+    base_url=GROQ_BASE_URL,
+    default_model=GROQ_DEFAULT_MODEL,
+    package_dir=Path(__file__).parent,
+    class_name="GroqProvider",
+)

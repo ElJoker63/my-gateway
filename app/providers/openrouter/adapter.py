@@ -1,30 +1,19 @@
-"""OpenRouter LLM Provider Adapter."""
-import json
+"""OpenRouter LLM Provider Adapter (generated via factory)."""
 import os
 from pathlib import Path
-from app.providers.openai_adapter import OpenAIAdapter
+
+from app.providers.factory import build_provider_class
 from .config import OPENROUTER_BASE_URL, OPENROUTER_DEFAULT_MODEL
 
-class OpenRouterProvider(OpenAIAdapter):
-    """OpenRouter Provider."""
+OpenRouterProvider = build_provider_class(
+    name="openrouter",
+    base_url=OPENROUTER_BASE_URL,
+    default_model=OPENROUTER_DEFAULT_MODEL,
+    package_dir=Path(__file__).parent,
+    class_name="OpenRouterProvider",
+    extra_headers={
+        "HTTP-Referer": os.getenv("OPENROUTER_HTTP_REFERER", "https://github.com/ElJoker63/my-gateway"),
+        "X-Title": os.getenv("OPENROUTER_APP_NAME", "My Gateway AI"),
+    },
 
-    def __init__(self, api_key: str = ""):
-        metadata_file = Path(__file__).parent / "metadata.json"
-        capabilities = {}
-        if metadata_file.exists():
-            with open(metadata_file, "r") as f:
-                metadata = json.load(f)
-                capabilities = metadata.get("capabilities", {})
-
-        super().__init__(
-            name="openrouter",
-            base_url=OPENROUTER_BASE_URL,
-            default_model=OPENROUTER_DEFAULT_MODEL,
-            default_api_key=api_key,
-            extra_headers={
-                "HTTP-Referer": "https://github.com/ElJoker63/my-gateway",
-                "X-Title": "My Gateway AI",
-            },
-            capabilities=capabilities,
-            embedding_model=os.getenv("OPENROUTER_EMBEDDING_MODEL", ""),
-        )
+)

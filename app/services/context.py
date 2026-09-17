@@ -111,6 +111,7 @@ async def build_context(
         context_parts.append(entry_text)
         total_chars += entry_len
 
+
     context_message = "\n".join(context_parts)
 
     logger.info(
@@ -154,26 +155,3 @@ def _format_memory_entry(mem: dict) -> str:
     parts.append("")
 
     return "\n".join(parts)
-
-
-def extract_search_terms(text: str) -> list[str]:
-    """
-    Extract key terms from user message for memory search.
-    Simple keyword extraction — the embedding search handles semantic matching.
-    """
-    # Remove common stop words and short words
-    stop_words = {
-        "the", "is", "at", "which", "on", "a", "an", "and", "or", "but",
-        "in", "with", "to", "for", "of", "this", "that", "it", "from",
-        "be", "are", "was", "were", "been", "have", "has", "had", "do",
-        "does", "did", "will", "would", "could", "should", "may", "might",
-        "can", "not", "no", "my", "your", "me", "you", "we", "they",
-        "el", "la", "los", "las", "un", "una", "de", "del", "en", "con",
-        "por", "para", "que", "es", "son", "este", "esta", "como",
-    }
-
-    words = text.lower().split()
-    terms = [w.strip(".,!?;:()[]{}\"'") for w in words if len(w) > 2]
-    terms = [t for t in terms if t and t not in stop_words]
-
-    return terms

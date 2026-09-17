@@ -1,26 +1,14 @@
-""" Lingyiwanwu LLM Provider Adapter."""
-import json
+"""LingyiWanwu LLM Provider Adapter (generated via factory)."""
 import os
 from pathlib import Path
-from app.providers.openai_adapter import OpenAIAdapter
+
+from app.providers.factory import build_provider_class
 from .config import LINGYIWANWU_BASE_URL, LINGYIWANWU_DEFAULT_MODEL
 
-class LingyiWanwuProvider(OpenAIAdapter):
-    """Lingyiwanwu Provider."""
-
-    def __init__(self, api_key: str = ""):
-        metadata_file = Path(__file__).parent / "metadata.json"
-        capabilities = {}
-        if metadata_file.exists():
-            with open(metadata_file, "r", encoding="utf-8") as f:
-                metadata = json.load(f)
-                capabilities = metadata.get("capabilities", {})
-
-        super().__init__(
-            name="lingyiwanwu",
-            base_url=LINGYIWANWU_BASE_URL,
-            default_model=LINGYIWANWU_DEFAULT_MODEL,
-            default_api_key=api_key,
-            capabilities=capabilities,
-            embedding_model=os.getenv("LINGYIWANWU_EMBEDDING_MODEL", ""),
-        )
+LingyiWanwuProvider = build_provider_class(
+    name="lingyiwanwu",
+    base_url=LINGYIWANWU_BASE_URL,
+    default_model=LINGYIWANWU_DEFAULT_MODEL,
+    package_dir=Path(__file__).parent,
+    class_name="LingyiWanwuProvider",
+)

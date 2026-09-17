@@ -1,6 +1,6 @@
 {
   "name": "cloudflare",
-  "base_url": "https://api.cloudflare.com/client/v4/accounts",
+  "base_url": "https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1",
   "default_model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
   "capabilities": {
     "chat": true,
@@ -10,5 +10,6 @@
     "tool_calling": false,
     "reasoning": false,
     "max_context": 128000
-  }
+  },
+  "notes": "Requires CLOUDFLARE_ACCOUNT_ID; the base URL is account-scoped."
 }

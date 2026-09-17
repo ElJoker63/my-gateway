@@ -92,21 +92,38 @@ async def index_project(
 
 @router.get("", tags=["Projects"])
 async def get_projects():
-    """List all indexed projects."""
+    """List all indexed projects with real indexing stats."""
     try:
-        projects = await list_projects()
-        project_infos = []
+        import asyncio
+        from app.database.redis import get_redis
 
-        for name in projects:
-            stats = await get_project_stats(name)
-            project_infos.append(
-                ProjectInfoResponse(
-                    name=name,
-                    files_indexed=0,  # TODO: track separately
-                    memory_count=stats.get("points_count", 0),
-                    status=stats.get("status", "active"),
-                )
+        projects = await list_projects()
+        redis = await get_redis()
+
+        async def _build(name: str) -> ProjectInfoResponse:
+            stats, raw = await asyncio.gather(
+                get_project_stats(name),
+                redis.hgetall(f"gw:project:stats:{name}"),
+                return_exceptions=True,
             )
+            if isinstance(stats, Exception):
+                stats = {}
+            files_indexed = 0
+            if isinstance(raw, dict) and raw:
+                val = raw.get(b"files_indexed", raw.get("files_indexed", 0))
+                try:
+                    files_indexed = int(val)
+                except (TypeError, ValueError):
+                    files_indexed = 0
+
+            return ProjectInfoResponse(
+                name=name,
+                files_indexed=files_indexed,
+                memory_count=stats.get("points_count", 0),
+                status=stats.get("status", "active"),
+            )
+
+        project_infos = await asyncio.gather(*(_build(n) for n in projects))
 
         return {
             "projects": [p.model_dump() for p in project_infos],
@@ -121,13 +138,26 @@ async def get_projects():
 async def get_project(name: str):
     """Get details for a specific project."""
     try:
+        from app.database.redis import get_redis
+
         stats = await get_project_stats(name)
 
         if stats.get("status") == "not_found":
             raise HTTPException(status_code=404, detail=f"Project '{name}' not found")
 
+        redis = await get_redis()
+        raw = await redis.hgetall(f"gw:project:stats:{name}")
+        files_indexed = 0
+        if raw:
+            val = raw.get(b"files_indexed", raw.get("files_indexed", 0))
+            try:
+                files_indexed = int(val)
+            except (TypeError, ValueError):
+                files_indexed = 0
+
         return ProjectInfoResponse(
             name=name,
+            files_indexed=files_indexed,
             memory_count=stats.get("points_count", 0),
             status=stats.get("status", "active"),
         )

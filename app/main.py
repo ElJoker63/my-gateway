@@ -252,13 +252,13 @@ async def key_pool_status(provider: Optional[str] = None):
 
 
 # =============================================================================
-# Rate Limit Status (legacy — delegates to key manager)
+# Rate Limit Status (legacy alias of /api/keys/status)
 # =============================================================================
 
 
-@app.get("/api/rate-limit", tags=["System"])
+@app.get("/api/rate-limit", tags=["System"], deprecated=True, include_in_schema=False)
 async def rate_limit_status(provider: Optional[str] = None):
-    """Get current rate limit status (per-key breakdown)."""
+    """Deprecated: use /api/keys/status instead."""
     from app.services.key_manager import key_manager
 
     provider_name = provider or settings.default_provider

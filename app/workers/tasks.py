@@ -261,6 +261,24 @@ async def index_project_task(
     else:
         logger.warning(f"No indexable files found in '{path}'")
 
+    # Persist indexing stats so the projects API reports real numbers
+    try:
+        import time
+        from app.database.redis import get_redis
+        redis = await get_redis()
+        await redis.hset(
+            f"gw:project:stats:{project_name}",
+            mapping={
+                "files_indexed": files_scanned,
+                "memories_created": total_stored,
+                "files_skipped": files_skipped,
+                "errors": errors,
+                "last_indexed_at": str(int(time.time())),
+            },
+        )
+    except Exception as e:
+        logger.warning(f"Failed to persist indexing stats for '{project_name}': {e}")
+
     return {
         "project": project_name,
         "files_scanned": files_scanned,
