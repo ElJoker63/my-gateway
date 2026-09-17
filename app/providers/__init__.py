@@ -20,6 +20,7 @@ from .groq import GroqProvider
 from .hunyuan import HunyuanProvider
 from .hyperbolic import HyperbolicProvider
 from .kilocode import KilocodeProvider
+from .kiro import KiroProvider
 from .lingyiwanwu import LingyiWanwuProvider
 from .minimax import MiniMaxProvider
 from .modelscope import ModelScopeProvider
@@ -62,6 +63,7 @@ PROVIDER_CLASSES = {
     "opencode": OpenCodeProvider,
     "opencode_go": OpencodeGoProvider,
     "kilocode": KilocodeProvider,
+    "kiro": KiroProvider,
     "nous_research": NousResearchProvider,
     "deepseek": DeepSeekProvider,
     "siliconflow": SiliconFlowProvider,
@@ -86,13 +88,23 @@ def init_providers():
     global _providers
     settings = get_settings()
     from app.services.key_manager import key_manager
+    from app.services.oauth_store import oauth_store
+
+    OAUTH_PROVIDERS = {"kiro", "antigravity"}  # providers with OAuth token store
 
     for name, provider_cls in PROVIDER_CLASSES.items():
         keys = settings.get_provider_keys(name)
         try:
-            # Inject the first pool key as the provider's default — the KeyManager
-            # may still override per-request via the api_key parameter.
-            instance = provider_cls(api_key=keys[0] if keys else "")
+            # OAuth-backed providers (if any) get their access token last-backed from the OAuth store
+            instance = None
+            if name in OAUTH_PROVIDERS:
+                stored = oauth_store._local.get(name)
+                if stored:
+                    instance = provider_cls(api_key=stored["access_token"])
+
+            if instance is None:
+                instance = provider_cls(api_key=keys[0] if keys else "")
+
             if not getattr(instance, "base_url", ""):
                 logger.info(f"Skipping provider '{name}': no base_url configured")
                 continue

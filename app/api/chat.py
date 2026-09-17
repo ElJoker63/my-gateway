@@ -13,6 +13,7 @@ import json
 import logging
 import time
 import uuid
+from dataclasses import dataclass
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from fastapi.responses import StreamingResponse
@@ -46,6 +47,35 @@ from app.services.racing import execute_combo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+OAUTH_BACKED_PROVIDERS = frozenset({"kiro", "antigravity"})
+
+
+async def _acquire_request_key(provider_name: str):
+    """
+    Acquire a usable key for one request. OAuth-backed providers resolve through
+    the OAuth token store (auto-refreshing); everyone else goes through the
+    KeyManager's rotating pool.
+    """
+    if provider_name in OAUTH_BACKED_PROVIDERS:
+        from app.services.oauth import get_valid_access_token
+
+        token = await get_valid_access_token(provider_name)
+        return _OAuthToken(token)
+
+    return await key_manager.acquire_key(provider_name)
+
+
+@dataclass
+class _OAuthToken:
+    """Duck-typed stand-in for KeyInfo so OAuth keys ride the same code path."""
+
+    key: str
+    key_id: str = "oauth"
+    display: str = "oauth-token"
+    index: int = 0
+    requests_used: int = 0
+    requests_limit: int = 0
 
 
 # =============================================================================
@@ -109,7 +139,7 @@ async def _call_with_fallback(
 
             # Try to get another key
             try:
-                current_key = await key_manager.acquire_key(provider.name)
+                current_key = await _acquire_request_key(provider.name)
             except (TimeoutError, RuntimeError) as e:
                 raise HTTPException(
                     status_code=429,
@@ -154,7 +184,7 @@ async def _call_via_combo(
             provider = get_provider(target.provider)
             model_for_target = target.model or provider.default_model
 
-            key_info = await key_manager.acquire_key(target.provider)
+            key_info = await _acquire_request_key(target.provider)
             result = await provider.chat(
                 messages=enriched_messages,
                 model=model_for_target,
@@ -264,7 +294,7 @@ async def _process_chat(
     else:
         # --- Step 3: Acquire key (handles rate limiting + rotation) ---
         try:
-            key_info = await key_manager.acquire_key(provider.name)
+            key_info = await _acquire_request_key(provider.name)
         except TimeoutError as e:
             raise HTTPException(status_code=429, detail="API keys exhausted — try again later") from e
         except RuntimeError as e:
@@ -340,7 +370,7 @@ async def _process_chat_stream(
 
     # Acquire key
     try:
-        key_info = await key_manager.acquire_key(provider.name)
+        key_info = await _acquire_request_key(provider.name)
     except (TimeoutError, RuntimeError) as e:
         logger.warning(f"Stream rejected — could not acquire key: {e}")
         error_data = json.dumps({"error": {"message": "No API keys available for this provider", "type": "rate_limit_error"}})
