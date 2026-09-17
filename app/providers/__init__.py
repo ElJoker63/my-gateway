@@ -3,6 +3,7 @@ LLM Provider registry and factory.
 Manages provider instances and registers key pools with the KeyManager across all 24 supported providers.
 """
 
+import json
 import logging
 
 from app.config import get_settings
@@ -81,6 +82,41 @@ PROVIDER_CLASSES = {
     "lingyiwanwu": LingyiWanwuProvider,
     "volcengine": VolcengineProvider,
 }
+
+async def load_persisted_keys_from_redis():
+    """
+    Merge keys added at runtime (POST /api/providers/{name}/keys) back into
+    the KeyManager pools on startup, on top of env-provided keys.
+    """
+    from app.services.key_manager import key_manager
+
+    try:
+        from app.database.redis import get_redis
+        redis = await get_redis()
+        keys_to_load = await redis.keys("gw:provider_keys:*")
+        for raw_key in keys_to_load:
+            full = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
+            provider = full.removeprefix("gw:provider_keys:")
+            raw = await redis.hget(full, "keys")
+            if not raw:
+                continue
+            vals = json.loads(raw if isinstance(raw, str) else raw.decode())
+            if not vals:
+                continue
+            pool = key_manager._pools.get(provider)
+            existing = {k.key for k in pool.keys} if pool else set()
+            to_add = [k for k in vals if k not in existing]
+            if to_add:
+                key_manager.add_keys_from_list(provider, to_add)
+    except Exception as e:
+        logger.warning(f"Could not reload runtime keys from Redis: {e}")
+
+
+async def init_providers_async():
+    """Async wrapper to also load any keys persisted in Redis earlier."""
+    init_providers()
+    await load_persisted_keys_from_redis()
+
 
 _providers: dict[str, LLMProvider] = {}
 

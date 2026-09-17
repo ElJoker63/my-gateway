@@ -14,6 +14,7 @@ Lua script, so concurrent workers can never double-book the last free slot.
 
 import asyncio
 import hashlib
+import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -172,6 +173,71 @@ class KeyManager:
     def has_pool(self, provider: str) -> bool:
         """Check if a provider has a registered key pool."""
         return provider in self._pools and len(self._pools[provider].keys) > 0
+
+    def add_key(self, provider: str, key: str) -> dict:
+        """
+        Append a new API key to a provider's pool at runtime.
+
+        The key is stored in Redis (survives restarts) and merged into the
+        live pool so the next request acquires it like any pooled key.
+
+        Raises ValueError if the provider has no pool or the key already exists.
+        """
+        key = (key or "").strip()
+        if not key:
+            raise ValueError("empty key")
+
+        pool = self._pools.get(provider)
+        if pool is None:
+            # Allow bootstrapping a pool for a provider that had no env keys
+            settings = get_settings()
+            rpm = settings.get_provider_rpm(provider)
+            self.register_pool(provider, [key], rpm_per_key=rpm)
+        else:
+            fingerprint = key_fingerprint(key)
+            if any(k.key_id == fingerprint for k in pool.keys):
+                raise ValueError("key already in pool")
+            pool.keys.append(KeyInfo(
+                key=key,
+                key_id=fingerprint,
+                display=mask_key(key),
+                provider=provider,
+                index=len(pool.keys),
+                requests_limit=pool.keys[0].requests_limit if pool.keys else 0,
+            ))
+
+        # Persist in Redis so Docker restarts keep custom keys
+        try:
+            import asyncio
+
+            async def _persist():
+                redis = await get_redis()
+                existing = await redis.hget(f"gw:provider_keys:{provider}", "keys")
+                keys: list[str] = json.loads(existing) if existing else []
+                if key not in keys:
+                    keys.append(key)
+                    await redis.hset(f"gw:provider_keys:{provider}", "keys", json.dumps(keys))
+
+            # If we're already inside a loop (the common case in the gateway),
+            # fire and forget; callers can also await explicitly.
+            task = asyncio.get_event_loop().create_task(_persist())
+            task.add_done_callback(lambda t: t.exception())
+        except Exception as e:
+            logger.warning(f"Could not persist new key to Redis for {provider}: {e}")
+
+        logger.info(f"Registered new key for '{provider}': {mask_key(key)}")
+        return {"provider": provider, "key_id": key_fingerprint(key), "total_keys": len(self._pools[provider].keys)}
+
+    def add_keys_from_list(self, provider: str, keys: list[str]) -> int:
+        """Append several keys at once (used by the Redis reload path). Counts new ones."""
+        added = 0
+        for raw in keys:
+            try:
+                self.add_key(provider, raw)
+                added += 1
+            except ValueError:
+                pass  # duplicate
+        return added
 
     def get_any_key(self, provider: str) -> str | None:
         """Get any raw key for a provider (for health checks, etc)."""

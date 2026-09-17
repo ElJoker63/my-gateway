@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hugeicons/core-free-icons": "^4.3.3",
+    "@hugeicons/vue": "^1.0.8",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },

@@ -1,8 +1,18 @@
 <template>
   <div class="login-wrap">
     <div class="card login-card">
-      <h1>🧠 My Gateway AI</h1>
+      <div class="login-head">
+        <div class="logo-mark">
+          <HugeiconsIcon :icon="ApiGatewayIcon" :size="26" :stroke-width="1.6" />
+        </div>
+        <div>
+          <h1>My Gateway AI</h1>
+          <p class="muted">LLM Gateway Admin</p>
+        </div>
+      </div>
+
       <p class="muted">Enter your gateway API key to continue.</p>
+
       <input
         v-model="key"
         type="password"
@@ -21,6 +31,8 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { HugeiconsIcon } from "@hugeicons/vue";
+import { ApiGatewayIcon } from "@hugeicons/core-free-icons";
 import { useAuthStore } from "@/stores/auth";
 
 const key = ref("");
@@ -49,17 +61,7 @@ async function submit() {
 </script>
 
 <style scoped>
-.login-wrap {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.login-card {
-  width: 360px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.login-card h1 { font-size: 20px; }
+.login-head { display: flex; gap: 14px; align-items: center; }
+.login-head h1 { margin: 0; font-size: 22px; }
+.login-head p { margin: 0; font-size: 12.5px; }
 </style>

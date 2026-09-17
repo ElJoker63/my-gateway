@@ -11,11 +11,12 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from app.api import api_router
 from app.config import get_settings
@@ -76,6 +77,13 @@ async def lifespan(app: FastAPI):
         logger.info("✓ LLM providers initialized")
     except Exception as e:
         logger.error(f"✗ Provider initialization failed: {e}")
+
+    # Restore any keys added via POST /api/providers/{}/keys before shutdown
+    try:
+        from app.providers import load_persisted_keys_from_redis
+        await load_persisted_keys_from_redis()
+    except Exception as e:
+        logger.warning(f"Could not reload runtime keys: {e}")
 
     # Configure the circuit breaker from settings
     from app.services.circuit_breaker import configure_circuit_breaker
@@ -198,7 +206,7 @@ async def auth_middleware(request: Request, call_next):
 
     # Skip auth for public routes; /dashboard serves static assets that prompt
     # for the API key client-side, so it stays public purely for UX.
-    public_paths = {"/health", "/docs", "/redoc", "/openapi.json"}
+    public_paths = {"/health", "/docs", "/redoc", "/openapi.json", "/"}
     path = request.url.path
     if path in public_paths or path.startswith("/dashboard"):
         return await call_next(request)
@@ -226,6 +234,17 @@ async def auth_middleware(request: Request, call_next):
         )
 
     return await call_next(request)
+
+
+# =============================================================================
+# Landing redirect
+# =============================================================================
+
+
+@app.get("/", include_in_schema=False)
+async def root_redirect():
+    """Redirect the bare root URL to the dashboard (friendlier first boot)."""
+    return RedirectResponse(url="/dashboard/", status_code=302)
 
 
 # =============================================================================
@@ -276,6 +295,21 @@ async def key_pool_status(provider: str | None = None):
     if provider:
         return await key_manager.get_pool_status(provider)
     return await key_manager.get_all_pools_status()
+
+
+class _AddKeyBody(BaseModel):
+    key: str = Field(..., min_length=4, max_length=4096)
+
+
+@app.post("/api/providers/{name}/keys", tags=["System"], status_code=201)
+async def add_provider_key(name: str, body: _AddKeyBody):
+    """Register a new API key in a provider's pool at runtime (persisted to Redis)."""
+    from app.services.key_manager import key_manager
+
+    try:
+        return key_manager.add_key(name, body.key)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # =============================================================================
