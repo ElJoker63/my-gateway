@@ -7,9 +7,13 @@ Provides a provider-agnostic key management layer that:
 - Tracks per-key usage via Redis sliding window
 - Automatically falls back to alternate keys on rate limit or error
 - Masks keys in logs for security
+
+Key acquisition is ATOMIC: status check + slot consumption happen in a single
+Lua script, so concurrent workers can never double-book the last free slot.
 """
 
 import asyncio
+import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
@@ -23,44 +27,65 @@ logger = logging.getLogger(__name__)
 # Redis key prefixes
 KEY_PREFIX = "gw:keys"
 
-# Lua script for atomic per-key rate limit check + increment
-# Same sliding window as rate_limit.py but scoped per key
-PER_KEY_RATE_LIMIT_LUA = """
-local key = KEYS[1]
+# Atomic acquire: checks error cooldown, checks the sliding-window rate limit,
+# and (only if there is room) consumes a slot — all in one Redis round-trip.
+#
+# Return: {status, used, retry_after_ms}
+#   status 2 → key is in error cooldown
+#   status 1 → slot consumed, `used` is the new window count
+#   status 0 → rate limited, retry_after_ms until the oldest request expires
+ACQUIRE_SLOT_LUA = """
+local rate_key = KEYS[1]
+local error_key = KEYS[2]
 local now = tonumber(ARGV[1])
 local window = tonumber(ARGV[2])
 local limit = tonumber(ARGV[3])
+local nonce = ARGV[4]
 
-redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
-local count = redis.call('ZCARD', key)
+if redis.call('EXISTS', error_key) == 1 then
+    return {2, 0, 0}
+end
+
+redis.call('ZREMRANGEBYSCORE', rate_key, 0, now - window)
+local count = redis.call('ZCARD', rate_key)
 
 if count < limit then
-    redis.call('ZADD', key, now, now .. '-' .. math.random(1000000))
-    redis.call('EXPIRE', key, math.ceil(window / 1000))
+    redis.call('ZADD', rate_key, now, now .. '-' .. nonce)
+    redis.call('PEXPIRE', rate_key, window)
     return {1, count + 1, 0}
-else
-    local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
-    local retry_after = 0
-    if #oldest > 0 then
-        retry_after = (tonumber(oldest[2]) + window) - now
-    end
-    return {0, count, retry_after}
 end
+
+local oldest = redis.call('ZRANGE', rate_key, 0, 0, 'WITHSCORES')
+local retry_after = 0
+if #oldest > 0 then
+    retry_after = (tonumber(oldest[2]) + window) - now
+end
+return {0, count, retry_after}
 """
 
 
 def mask_key(api_key: str) -> str:
-    """Mask an API key for safe logging. Shows only last 4 characters."""
+    """Mask an API key for safe logging. Shows only first 3 and last 4 characters."""
     if len(api_key) <= 8:
         return "****" + api_key[-2:] if len(api_key) > 2 else "****"
     return api_key[:3] + "****" + api_key[-4:]
+
+
+def key_fingerprint(api_key: str) -> str:
+    """
+    Stable, collision-safe identifier derived from the full key.
+    Used internally for error reporting and status lookups — mask_key is
+    for display only (different keys can share a mask).
+    """
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:10]
 
 
 @dataclass
 class KeyInfo:
     """Information about a single API key."""
     key: str
-    key_id: str  # Masked identifier for logs/Redis
+    key_id: str  # Stable fingerprint (sha256 prefix) — unique per key
+    display: str  # Masked form for logs/UI
     provider: str
     index: int  # Position in the pool
 
@@ -123,10 +148,10 @@ class KeyManager:
 
         key_infos = []
         for i, raw_key in enumerate(keys):
-            key_id = mask_key(raw_key)
             key_infos.append(KeyInfo(
                 key=raw_key,
-                key_id=key_id,
+                key_id=key_fingerprint(raw_key),
+                display=mask_key(raw_key),
                 provider=provider,
                 index=i,
                 requests_limit=limit,
@@ -143,7 +168,7 @@ class KeyManager:
             f"{len(key_infos)} keys, {limit} RPM/key"
         )
         for ki in key_infos:
-            logger.info(f"  Key {ki.index}: {ki.key_id}")
+            logger.info(f"  Key {ki.index}: {ki.display} (id={ki.key_id})")
 
     def has_pool(self, provider: str) -> bool:
         """Check if a provider has a registered key pool."""
@@ -164,18 +189,17 @@ class KeyManager:
         """
         Select the best available key for a provider.
 
-        Strategy:
-        1. Check all keys in the pool for availability (rate limit + error status)
-        2. Select based on configured strategy (least_used or round_robin)
-        3. If all keys are rate-limited, wait for the earliest one to free up
-        4. If all keys are in error/cooldown, raise an exception
+        The status snapshot (ordering candidates) is separate from the atomic
+        acquire: each candidate is tried in preference order with a Lua script
+        that checks cooldown + rate limit and consumes the slot in one
+        round-trip. A candidate that lost the race simply moves to the next.
 
         Returns:
             KeyInfo with the selected key
 
         Raises:
-            RuntimeError: If no keys are available
-            TimeoutError: If wait timeout is reached
+            RuntimeError: If no keys are available (all in error cooldown)
+            TimeoutError: If wait timeout is reached while rate-limited
         """
         pool = self._pools.get(provider)
         if not pool or not pool.keys:
@@ -187,48 +211,43 @@ class KeyManager:
         waited = 0.0
 
         while True:
-            # Gather status for all keys
-            candidates = []
-            rate_limited = []
+            # 1. Snapshot all keys in parallel (single Redis round-trip)
+            statuses = await asyncio.gather(
+                *(self._get_key_status(ki) for ki in pool.keys)
+            )
+
+            candidates: list[tuple[KeyInfo, dict]] = []
+            rate_limited: list[KeyInfo] = []
             earliest_retry = float("inf")
 
-            for ki in pool.keys:
-                status = await self._get_key_status(ki)
-
+            for ki, status in zip(pool.keys, statuses):
                 if status["in_cooldown"]:
-                    continue  # Skip keys in error cooldown
-
+                    continue
                 if status["rate_limited"]:
                     rate_limited.append(ki)
-                    retry = status["retry_after_seconds"]
-                    if retry < earliest_retry:
-                        earliest_retry = retry
+                    if status["retry_after_seconds"] < earliest_retry:
+                        earliest_retry = status["retry_after_seconds"]
                     continue
+                candidates.append((ki, status))
 
-                # Key is available
-                ki_copy = KeyInfo(
-                    key=ki.key,
-                    key_id=ki.key_id,
-                    provider=ki.provider,
-                    index=ki.index,
-                    requests_used=status["requests_used"],
-                    requests_limit=ki.requests_limit,
-                    status="active",
-                )
-                candidates.append(ki_copy)
-
-            # --- Select from candidates ---
+            # 2. Order candidates by strategy
             if candidates:
-                selected = self._select_key(candidates, pool, strategy)
-                # Consume a rate limit slot
-                await self._consume_slot(selected)
+                ordered = self._order_candidates(candidates, pool, strategy)
 
-                logger.info(
-                    f"Provider: {provider} | Using key: {selected.key_id} | "
-                    f"Used: {selected.requests_used + 1}/{selected.requests_limit}"
-                    + (f" | Strategy: {strategy}" if len(pool.keys) > 1 else "")
-                )
-                return selected
+                # 3. Atomic acquire attempt in order — racing losers fall through
+                for ki, _status in ordered:
+                    outcome = await self._try_acquire(ki)
+                    if outcome == "acquired":
+                        logger.info(
+                            f"Provider: {provider} | Using key: {ki.display} "
+                            f"(id={ki.key_id}) | "
+                            f"Used: {ki.requests_used}/{ki.requests_limit}"
+                            + (f" | Strategy: {strategy}" if len(pool.keys) > 1 else "")
+                        )
+                        return ki
+                    elif outcome == "rate_limited" and ki not in rate_limited:
+                        rate_limited.append(ki)
+                    # "cooldown" or "rate_limited" → try next candidate
 
             # --- All keys rate-limited: wait ---
             if rate_limited and earliest_retry < float("inf"):
@@ -252,60 +271,98 @@ class KeyManager:
                 "No available keys."
             )
 
-    def _select_key(
+    def _order_candidates(
         self,
-        candidates: list[KeyInfo],
+        candidates: list[tuple[KeyInfo, dict]],
         pool: KeyPool,
         strategy: str,
-    ) -> KeyInfo:
-        """Select a key from available candidates based on strategy."""
+    ) -> list[tuple[KeyInfo, dict]]:
+        """Order candidate keys by the configured selection strategy."""
         if len(candidates) == 1:
-            return candidates[0]
+            return candidates
 
         if strategy == "round_robin":
-            # Round-robin: cycle through candidates by pool index
             idx = pool.round_robin_index % len(candidates)
             pool.round_robin_index += 1
-            return candidates[idx]
+            return candidates[idx:] + candidates[:idx]
 
-        # Default: least_used — pick the key with the most remaining capacity
-        candidates.sort(key=lambda k: k.requests_used)
-        return candidates[0]
+        # Default: least_used — prefer the key with the most remaining capacity
+        return sorted(candidates, key=lambda item: item[1]["requests_used"])
 
     # =========================================================================
     # Per-Key Rate Limiting (Redis)
     # =========================================================================
 
-    async def _get_lua_sha(self) -> str:
-        """Load the Lua script into Redis."""
-        if self._lua_sha is None:
-            redis = await get_redis()
-            self._lua_sha = await redis.script_load(PER_KEY_RATE_LIMIT_LUA)
-        return self._lua_sha
+    async def _eval_acquire(self, *args) -> list:
+        """
+        Eval the acquire Lua script, reloading it on NOSCRIPT errors
+        (happens after SCRIPT FLUSH or a Redis restart).
+        """
+        redis = await get_redis()
+        try:
+            if self._lua_sha is None:
+                self._lua_sha = await redis.script_load(ACQUIRE_SLOT_LUA)
+            return await redis.evalsha(self._lua_sha, *args)
+        except Exception as e:
+            if "NOSCRIPT" in str(e).upper():
+                self._lua_sha = await redis.script_load(ACQUIRE_SLOT_LUA)
+                return await redis.evalsha(self._lua_sha, *args)
+            raise
+
+    async def _try_acquire(self, ki: KeyInfo) -> str:
+        """
+        Atomically check cooldown + window and consume a slot for a key.
+
+        Returns "acquired" | "rate_limited" | "cooldown". On Redis failure the
+        key is acquired without consumption (fail-open) and a warning is logged,
+        so a Redis outage degrades rate limiting without breaking traffic.
+        """
+        now_ms = int(time.time() * 1000)
+        window_ms = 60_000
+        rate_key = f"{KEY_PREFIX}:{ki.provider}:{ki.index}:requests"
+        error_key = f"{KEY_PREFIX}:{ki.provider}:{ki.index}:error"
+        nonce = f"{time.monotonic_ns()}"
+
+        try:
+            status, used, _retry_ms = await self._eval_acquire(
+                2, rate_key, error_key, now_ms, window_ms, ki.requests_limit, nonce
+            )
+        except Exception as e:
+            logger.warning(
+                f"Rate-limit store unavailable ({e}); allowing key {ki.display} "
+                "without tracking (fail-open)"
+            )
+            ki.requests_used += 1
+            return "acquired"
+
+        if status == 2:
+            return "cooldown"
+        if status == 1:
+            ki.requests_used = used
+            return "acquired"
+        return "rate_limited"
 
     async def _get_key_status(self, ki: KeyInfo) -> dict:
-        """Get the current rate limit and error status of a key."""
+        """Get the current rate limit and error status of a key (read-only)."""
         try:
             redis = await get_redis()
             now_ms = int(time.time() * 1000)
             window_ms = 60_000
 
-            # Check rate limit
             rate_key = f"{KEY_PREFIX}:{ki.provider}:{ki.index}:requests"
-            await redis.zremrangebyscore(rate_key, 0, now_ms - window_ms)
-            count = await redis.zcard(rate_key)
+            error_key = f"{KEY_PREFIX}:{ki.provider}:{ki.index}:error"
+
+            pipe = redis.pipeline(transaction=False)
+            pipe.zremrangebyscore(rate_key, 0, now_ms - window_ms)
+            pipe.zcard(rate_key)
+            pipe.zrange(rate_key, 0, 0, withscores=True)
+            pipe.exists(error_key)
+            _purge, count, oldest, in_cooldown = await pipe.execute()
 
             rate_limited = count >= ki.requests_limit
             retry_after = 0.0
-
-            if rate_limited:
-                oldest = await redis.zrange(rate_key, 0, 0, withscores=True)
-                if oldest:
-                    retry_after = max(0, (oldest[0][1] + window_ms - now_ms) / 1000.0)
-
-            # Check error cooldown
-            error_key = f"{KEY_PREFIX}:{ki.provider}:{ki.index}:error"
-            in_cooldown = await redis.exists(error_key)
+            if rate_limited and oldest:
+                retry_after = max(0.0, (oldest[0][1] + window_ms - now_ms) / 1000.0)
 
             return {
                 "requests_used": count,
@@ -314,27 +371,14 @@ class KeyManager:
                 "in_cooldown": bool(in_cooldown),
             }
         except Exception as e:
-            logger.error(f"Key status check error for {ki.key_id}: {e}")
-            # Fail open
+            logger.error(f"Key status check error for {ki.display}: {e}")
+            # Fail open: treat the key as usable; the atomic acquire stays authoritative
             return {
                 "requests_used": 0,
                 "rate_limited": False,
-                "retry_after_seconds": 0,
+                "retry_after_seconds": 0.0,
                 "in_cooldown": False,
             }
-
-    async def _consume_slot(self, ki: KeyInfo):
-        """Record a request against a key's rate limit window."""
-        try:
-            redis = await get_redis()
-            now_ms = int(time.time() * 1000)
-            window_ms = 60_000
-            rate_key = f"{KEY_PREFIX}:{ki.provider}:{ki.index}:requests"
-
-            sha = await self._get_lua_sha()
-            await redis.evalsha(sha, 1, rate_key, now_ms, window_ms, ki.requests_limit)
-        except Exception as e:
-            logger.error(f"Failed to consume rate limit slot for {ki.key_id}: {e}")
 
     # =========================================================================
     # Error Reporting
@@ -344,6 +388,7 @@ class KeyManager:
         """
         Report an error for a key (rate limit 429, auth failure, etc).
         Puts the key in cooldown for the configured duration.
+        key_id is the collision-safe fingerprint (see key_fingerprint).
         """
         settings = get_settings()
         pool = self._pools.get(provider)
@@ -361,15 +406,15 @@ class KeyManager:
                         ex=settings.key_error_cooldown,
                     )
                     logger.warning(
-                        f"Provider: {provider} | Key {ki.key_id} | "
+                        f"Provider: {provider} | Key {ki.display} (id={ki.key_id}) | "
                         f"Error: {error_type} | Cooldown: {settings.key_error_cooldown}s"
                     )
                 except Exception as e:
-                    logger.error(f"Failed to report error for {ki.key_id}: {e}")
-                break
+                    logger.error(f"Failed to report error for {ki.display}: {e}")
+                return
 
     async def clear_error(self, provider: str, key_id: str):
-        """Clear the error cooldown for a key."""
+        """Clear the error cooldown for a key (by fingerprint)."""
         pool = self._pools.get(provider)
         if not pool:
             return
@@ -381,8 +426,8 @@ class KeyManager:
                     error_key = f"{KEY_PREFIX}:{ki.provider}:{ki.index}:error"
                     await redis.delete(error_key)
                 except Exception as e:
-                    logger.error(f"Failed to clear error for {ki.key_id}: {e}")
-                break
+                    logger.error(f"Failed to clear error for {ki.display}: {e}")
+                return
 
     # =========================================================================
     # Status & Monitoring
@@ -402,12 +447,13 @@ class KeyManager:
                 "keys": [],
             }
 
+        # Probe all keys in parallel instead of sequentially
+        statuses = await asyncio.gather(*(self._get_key_status(ki) for ki in pool.keys))
+
         key_statuses = []
         available = 0
 
-        for ki in pool.keys:
-            status = await self._get_key_status(ki)
-
+        for ki, status in zip(pool.keys, statuses):
             if status["in_cooldown"]:
                 state = "cooldown"
             elif status["rate_limited"]:
@@ -418,6 +464,7 @@ class KeyManager:
 
             key_statuses.append({
                 "id": ki.key_id,
+                "display": ki.display,
                 "index": ki.index,
                 "requests_used": status["requests_used"],
                 "requests_limit": ki.requests_limit,

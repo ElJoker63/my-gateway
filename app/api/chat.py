@@ -143,10 +143,16 @@ async def _process_chat(
     """
     provider = get_provider(provider_name)
     model_name = model or provider.default_model
+    cache_params = {
+        "temperature": temperature,
+        "top_p": top_p,
+        "max_tokens": max_tokens,
+        "stop": stop,
+    }
 
     # --- Step 1: Check cache ---
     if use_cache and not stream:
-        cached = await get_cached_response(messages, model_name, project)
+        cached = await get_cached_response(messages, model_name, project, params=cache_params)
         if cached:
             logger.info(f"Cache hit for project '{project}'")
             return {
@@ -192,6 +198,7 @@ async def _process_chat(
                 "usage": result["usage"],
             },
             project=project,
+            params=cache_params,
         )
 
     return {
