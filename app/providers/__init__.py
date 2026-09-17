@@ -19,16 +19,19 @@ from .google import GoogleProvider
 from .groq import GroqProvider
 from .hunyuan import HunyuanProvider
 from .hyperbolic import HyperbolicProvider
+from .kilocode import KilocodeProvider
 from .lingyiwanwu import LingyiWanwuProvider
 from .minimax import MiniMaxProvider
 from .modelscope import ModelScopeProvider
 from .moonshot import MoonshotProvider
+from .nous_research import NousResearchProvider
 
 # Legacy root providers
 from .nvidia import NvidiaProvider
 from .ollama import OllamaProvider
 from .openai import OpenAIProvider
 from .opencode import OpenCodeProvider
+from .opencode_go import OpencodeGoProvider
 
 # Package-based providers
 from .openrouter import OpenRouterProvider
@@ -57,6 +60,9 @@ PROVIDER_CLASSES = {
     "fireworks": FireworksProvider,
     "hyperbolic": HyperbolicProvider,
     "opencode": OpenCodeProvider,
+    "opencode_go": OpencodeGoProvider,
+    "kilocode": KilocodeProvider,
+    "nous_research": NousResearchProvider,
     "deepseek": DeepSeekProvider,
     "siliconflow": SiliconFlowProvider,
     "modelscope": ModelScopeProvider,

@@ -17,7 +17,8 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 - **Vector Memory** — Per-project persistent memory using Qdrant
 - **Context Enrichment** — Automatically injects relevant project context into LLM requests
 - **Project Indexing** — Scan and index entire codebases for memory
-- **Multi-Provider** — 25 providers: NVIDIA, OpenAI, Groq, Ollama, OpenRouter, Google, Cloudflare, DeepSeek, and more (any OpenAI-compatible endpoint)
+- **Multi-Provider** — 28 providers: NVIDIA, OpenAI, Groq, Ollama, OpenRouter, Google, Cloudflare, DeepSeek, Nous Research, Kilocode, OpenCode Zen & Go, and more (any OpenAI-compatible endpoint)
+- **Web Dashboard** — Vue 3 SPA served from the gateway itself at `/dashboard` (no build step, no extra deploy): health, provider pools, key status, combos, and live metrics
 - **Combos & Racing** *(ported from openproxy)* — Alias stable names to provider chains with `strict` / `round_robin` / `least_used` / `race` strategies; first valid response wins, losers cancelled
 - **Circuit Breaker** — Per-provider (+model) breaker with configurable threshold and cooldown, skipping unhealthy targets automatically
 - **Built-in Metrics** — `/api/metrics` with request/error counters, tokens, latency percentiles, and race stats
