@@ -18,6 +18,9 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 - **Context Enrichment** — Automatically injects relevant project context into LLM requests
 - **Project Indexing** — Scan and index entire codebases for memory
 - **Multi-Provider** — 25 providers: NVIDIA, OpenAI, Groq, Ollama, OpenRouter, Google, Cloudflare, DeepSeek, and more (any OpenAI-compatible endpoint)
+- **Combos & Racing** *(ported from openproxy)* — Alias stable names to provider chains with `strict` / `round_robin` / `least_used` / `race` strategies; first valid response wins, losers cancelled
+- **Circuit Breaker** — Per-provider (+model) breaker with configurable threshold and cooldown, skipping unhealthy targets automatically
+- **Built-in Metrics** — `/api/metrics` with request/error counters, tokens, latency percentiles, and race stats
 - **Hardened Security** — Dedicated gateway API key, CORS allowlist, request size limits, path-restricted project indexing
 - **Dockerized** — One command to run everything
 

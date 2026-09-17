@@ -5,6 +5,7 @@ FastAPI application factory with lifespan management, middleware,
 authentication, and health checks.
 """
 
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -74,15 +75,36 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"✗ Provider initialization failed: {e}")
 
+    # Configure the circuit breaker from settings
+    from app.services.circuit_breaker import configure_circuit_breaker
+    configure_circuit_breaker(
+        threshold=getattr(settings, "circuit_failure_threshold", None),
+        duration=getattr(settings, "circuit_unhealthy_seconds", None),
+    )
+
     # Preload local embedding model in a worker thread (first chat would block otherwise)
     from app.services.embedding import preload_embedding_model
     await preload_embedding_model()
+
+    # Periodic metrics snapshot: keeps the Redis mirror fresh for multi-worker reads
+    async def _metrics_snapshot_loop():
+        from app.services.metrics import persist_snapshot
+        while True:
+            await asyncio.sleep(60)
+            try:
+                await persist_snapshot()
+            except Exception as e:
+                logger.debug(f"metrics snapshot failed: {e}")
+
+    metrics_task = asyncio.create_task(_metrics_snapshot_loop())
 
     logger.info("=" * 60)
     logger.info("My Gateway AI ready on port 8000")
     logger.info("=" * 60)
 
     yield  # Application runs
+
+    metrics_task.cancel()
 
     # --- Shutdown ---
     logger.info("My Gateway AI shutting down...")
@@ -264,6 +286,28 @@ async def rate_limit_status(provider: str | None = None):
 
     provider_name = provider or settings.default_provider
     return await key_manager.get_pool_status(provider_name)
+
+
+# =============================================================================
+# Metrics
+# =============================================================================
+
+
+@app.get("/api/metrics", tags=["System"])
+async def get_metrics():
+    """
+    Gateway telemetry summary: request/error counters, per-provider stats,
+    latency percentiles over a rolling window, and race outcomes.
+    """
+    from app.services.circuit_breaker import circuit_breaker
+    from app.services.metrics import summarize_persisted
+
+    snapshot = await summarize_persisted()
+    snapshot["circuit_states"] = {
+        key: {"state": s.state, "failures": s.consecutive_failures}
+        for key, s in (await circuit_breaker.get_all_states()).items()
+    }
+    return snapshot
 
 
 # =============================================================================

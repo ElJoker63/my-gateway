@@ -101,3 +101,43 @@ Verifica el estado de salud de Redis y Qdrant.
 
 ### GET /api/keys/status
 Muestra el estado en tiempo real de los pools de API keys por proveedor (disponibilidad, requests usados, cooldown).
+
+### GET /api/metrics
+Telemetría del gateway: contadores de requests/errores, estadísticas por proveedor, percentiles de latencia (p50/p95/p99 en una ventana rodante) y estados de circuit breaker.
+
+---
+
+## Combos
+
+Los combos aliasan un nombre amigable a una lista ordenada de objetivos provider/modelo.
+Usa `model: "combo:<nombre>"` en cualquier endpoint de chat para enrutar por el combo.
+
+Estrategias:
+
+- `strict` — prueba los objetivos en orden, fail over ante errores (por defecto).
+- `round_robin` — rota el objetivo inicial entre peticiones.
+- `least_used` — empieza por el objetivo con menos uso reciente.
+- `race` — lanza hasta `race_size` objetivos en paralelo; gana el primero que responde, el resto se cancela.
+
+### GET /api/combos
+```json
+{ "combos": [ { "name": "fast", "targets": [ { "provider": "nvidia", "model": "llama-3.3-70b", "weight": 1 } ], "strategy": "race", "race_size": 2 } ], "total": 1 }
+```
+
+### POST /api/combos
+Crea o reemplaza un combo:
+```json
+{
+  "name": "fast",
+  "targets": [ { "provider": "nvidia", "model": "llama-3.3-70b" }, { "provider": "groq" } ],
+  "strategy": "race",
+  "race_size": 2
+}
+```
+
+### GET /api/combos/{name}
+Obtiene un combo (acepta el nombre con o sin `combo:`).
+
+### DELETE /api/combos/{name}
+Elimina un combo.
+

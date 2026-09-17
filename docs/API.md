@@ -259,3 +259,67 @@ Current rate limit status.
 ### GET /api/cache/stats
 
 Cache hit/miss statistics.
+
+### GET /api/metrics
+
+Gateway telemetry: request/error counters, per-provider stats, latency
+percentiles (p50/p95/p99 within a rolling window), race outcomes, and
+circuit-breaker states.
+
+```json
+{
+  "uptime_seconds": 3600.2,
+  "total_requests": 1520,
+  "total_errors": 12,
+  "error_rate": 0.0079,
+  "total_races": 140,
+  "race_wins": 132,
+  "providers": { "nvidia": { "requests": 800, "errors": 4, "tokens": 1523400, "models": ["llama-3.3-70b-versatile"] } },
+  "latency": { "nvidia:llama-3.3-70b-versatile": { "count": 512, "p50_ms": 420.1, "p95_ms": 980.5, "p99_ms": 1410.2 } },
+  "circuit_states": { "groq": { "state": "open", "failures": 3 } }
+}
+```
+
+---
+
+## Combos
+
+Combos alias a friendly name to an ordered list of provider/model targets.
+Use `model: "combo:<name>"` in any chat endpoint to route through the combo.
+
+Strategies:
+
+- `strict` — try targets in order, fail over on error (default).
+- `round_robin` — rotate the starting target across requests.
+- `least_used` — start with the target with the lowest recent usage.
+- `race` — launch up to `race_size` targets in parallel; first valid response wins, losers are cancelled.
+
+### GET /api/combos
+
+```json
+{ "combos": [ { "name": "fast", "targets": [ { "provider": "nvidia", "model": "llama-3.3-70b", "weight": 1 } ], "strategy": "race", "race_size": 2 } ], "total": 1 }
+```
+
+### POST /api/combos
+
+Create or replace a combo:
+
+```json
+{
+  "name": "fast",
+  "targets": [
+    { "provider": "nvidia", "model": "llama-3.3-70b" },
+    { "provider": "groq" }
+  ],
+  "strategy": "race",
+  "race_size": 2
+}
+```
+
+### GET /api/combos/{name}
+
+Fetch one combo. Accepts the bare name or `combo:<name>`.
+
+### DELETE /api/combos/{name}
+
+Delete a combo.

@@ -36,9 +36,13 @@ from app.models.responses import (
 )
 from app.providers import get_provider
 from app.services.cache import get_cached_response, set_cached_response
+from app.services.circuit_breaker import circuit_breaker
+from app.services.combos import combo_store
 from app.services.context import build_context
 from app.services.key_manager import key_manager
 from app.services.memory import store_memory
+from app.services.metrics import metrics
+from app.services.racing import execute_combo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -129,6 +133,58 @@ async def _call_with_fallback(
     )
 
 
+async def _call_via_combo(
+    combo,
+    enriched_messages: list[dict],
+    temperature: float | None,
+    max_tokens: int | None,
+    top_p: float | None,
+    stop: list[str] | None,
+    **kwargs,
+) -> dict:
+    """
+    Walk a combo's targets honoring its strategy; the first successful call wins.
+    Circuit breaker state filters out known-unhealthy targets before trying.
+    """
+    async def _attempt(target) -> dict:
+        if not await circuit_breaker.is_available(target.provider, target.model):
+            raise RuntimeError(f"Target {target.provider} circuit-open")
+
+        try:
+            provider = get_provider(target.provider)
+            model_for_target = target.model or provider.default_model
+
+            key_info = await key_manager.acquire_key(target.provider)
+            result = await provider.chat(
+                messages=enriched_messages,
+                model=model_for_target,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                stop=stop,
+                api_key=key_info.key,
+                **kwargs,
+            )
+            await circuit_breaker.record_success(target.provider, target.model)
+            return {
+                "content": result["content"],
+                "model": result["model"],
+                "usage": result.get("usage", {}),
+                "provider": target.provider,
+            }
+        except Exception:
+            await circuit_breaker.record_failure(target.provider, target.model)
+            raise
+
+    outcome = await execute_combo(combo, _attempt)
+    if not outcome.ok:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Combo '{combo.name}' failed after {outcome.attempts} attempt(s): {outcome.error}",
+        )
+    return outcome.result
+
+
 async def _process_chat(
     messages: list[dict],
     model: str | None = None,
@@ -153,7 +209,21 @@ async def _process_chat(
     6. Return result
     """
     provider = get_provider(provider_name)
-    model_name = model or provider.default_model
+
+    # Cascade for model resolution: explicit model > combo alias > provider default
+    combo = None
+    if model:
+        combo = await combo_store.get(model)
+        if combo and not combo.targets:
+            combo = None  # empty combo → treat as unknown
+
+    if combo:
+        # Combo routing handles key acquisition and fallback per target
+        label = f"combo:{combo.name}"
+        model_name = label
+    else:
+        model_name = model or provider.default_model
+
     cache_params = {
         "temperature": temperature,
         "top_p": top_p,
@@ -177,25 +247,50 @@ async def _process_chat(
     # --- Step 2: Build context from memory ---
     enriched_messages = await build_context(messages, project, use_memory)
 
-    # --- Step 3: Acquire key (handles rate limiting + rotation) ---
-    try:
-        key_info = await key_manager.acquire_key(provider.name)
-    except TimeoutError as e:
-        raise HTTPException(status_code=429, detail="API keys exhausted — try again later") from e
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail="No API keys available for this provider") from e
+    started_at = time.monotonic()
 
-    # --- Step 4: Call LLM provider with acquired key (+ fallback) ---
-    result = await _call_with_fallback(
-        provider=provider,
-        messages=enriched_messages,
-        model=model_name,
-        key_info=key_info,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        top_p=top_p,
-        stop=stop,
-        **kwargs,
+    if combo is not None:
+        result = await _call_via_combo(
+            combo=combo,
+            enriched_messages=enriched_messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            stop=stop,
+            stream=False,
+            **kwargs,
+        )
+        result.setdefault("usage", {})
+    else:
+        # --- Step 3: Acquire key (handles rate limiting + rotation) ---
+        try:
+            key_info = await key_manager.acquire_key(provider.name)
+        except TimeoutError as e:
+            raise HTTPException(status_code=429, detail="API keys exhausted — try again later") from e
+        except RuntimeError as e:
+            raise HTTPException(status_code=503, detail="No API keys available for this provider") from e
+
+        # --- Step 4: Call LLM provider with acquired key (+ fallback) ---
+        result = await _call_with_fallback(
+            provider=provider,
+            messages=enriched_messages,
+            model=model_name,
+            key_info=key_info,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            stop=stop,
+            **kwargs,
+        )
+
+    # Metrics for this request
+    elapsed_ms = (time.monotonic() - started_at) * 1000
+    metrics.record(
+        provider=result.get("provider", provider.name),
+        model=result.get("model", model_name),
+        latency_ms=elapsed_ms,
+        ok=True,
+        tokens=(result.get("usage") or {}).get("total_tokens", 0),
     )
 
     # --- Step 5: Cache response ---
@@ -215,8 +310,8 @@ async def _process_chat(
     return {
         "content": result["content"],
         "model": result["model"],
-        "usage": result["usage"],
-        "provider": provider.name,
+        "usage": result.get("usage", {}),
+        "provider": result.get("provider", provider.name),
         "cached": False,
     }
 

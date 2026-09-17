@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     max_requests_per_minute: int = Field(default=35, description="Max requests per minute to LLM provider")
     rate_limit_wait_timeout: int = Field(default=60, description="Max seconds to wait when rate limited")
 
+    # --- Circuit Breaker ---
+    circuit_failure_threshold: int = Field(default=3, description="Consecutive failures before a provider circuit opens")
+    circuit_unhealthy_seconds: int = Field(default=60, description="Seconds a broken provider stays out of rotation")
+
     # --- Redis ---
     redis_host: str = Field(default="redis", description="Redis host")
     redis_port: int = Field(default=6379, description="Redis port")
