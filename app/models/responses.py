@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # --- Gateway Simplified Chat Response ---
@@ -144,7 +144,7 @@ class HealthResponse(BaseModel):
     status: str = "healthy"
     version: str = "1.0.0"
     services: dict[str, ServiceHealth] = Field(default_factory=dict)
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 # --- Rate Limit ---

@@ -74,12 +74,8 @@ class OpenAIChatRequest(BaseModel):
 
 # --- Anthropic Messages API ---
 
-class AnthropicContentBlock(BaseModel):
-    """Content block for Anthropic Messages API."""
-    type: str = Field(default="text")
-    text: str = Field(...)
-
-
+# Content blocks live in responses.py (AnthropicContentBlock); requests reuse
+# the generic ChatMessage so tool_calls/multimodal shapes pass through cleanly.
 class AnthropicMessageRequest(BaseModel):
     """Anthropic Messages API compatible request."""
     model: str = Field(...)
