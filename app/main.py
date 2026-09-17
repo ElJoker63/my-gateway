@@ -9,11 +9,13 @@ import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
 from app.config import get_settings
@@ -194,9 +196,11 @@ async def auth_middleware(request: Request, call_next):
     """
     settings = get_settings()
 
-    # Skip auth for public routes
+    # Skip auth for public routes; /dashboard serves static assets that prompt
+    # for the API key client-side, so it stays public purely for UX.
     public_paths = {"/health", "/docs", "/redoc", "/openapi.json"}
-    if request.url.path in public_paths:
+    path = request.url.path
+    if path in public_paths or path.startswith("/dashboard"):
         return await call_next(request)
 
     # Skip entirely when auth is disabled for local development
@@ -329,3 +333,16 @@ async def cache_stats():
 # =============================================================================
 
 app.include_router(api_router)
+
+
+# =============================================================================
+# Static Dashboard (Vue 3 SPA bundled as plain ES modules — no build step)
+# =============================================================================
+
+_dashboard_dir = Path(__file__).resolve().parent / "dashboard"
+if _dashboard_dir.is_dir():
+    app.mount(
+        "/dashboard",
+        StaticFiles(directory=_dashboard_dir, html=True),
+        name="dashboard",
+    )
