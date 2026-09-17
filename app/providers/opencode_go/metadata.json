@@ -11,6 +11,5 @@
     "reasoning": true,
     "json_mode": true,
     "max_context": 256000
-  },
-  "source": "ported from openproxy (https://github.com/soyelmismo/openproxy)"
+  }
 }

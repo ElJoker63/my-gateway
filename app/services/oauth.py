@@ -3,8 +3,8 @@ OAuth 2.0 engine — PKCE and device-code flows for providers that don't
 take static API keys (Kiro via AWS SSO OIDC, Antigravity via Google Cloud
 Code, Gemini Code Assist via Google).
 
-All constants are taken from the public client registrations referenced by
-the upstream OSS projects (openproxy, Kiro CLI, Google Cloud Code docs).
+Client ids come from the public registrations used by the official CLIs
+(Kiro CLI, Google Cloud Code).
 
 State lives in Redis (shared across workers) with an in-memory fallback.
 """

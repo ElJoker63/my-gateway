@@ -1,5 +1,5 @@
 """
-Circuit breaker per provider (+model), ported from openproxy's pipeline.
+Circuit breaker per provider (+model).
 
 A provider/model that fails `failure_threshold` consecutive times opens the
 circuit for `unhealthy_duration` seconds, during which requests skip it

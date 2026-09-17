@@ -2,7 +2,7 @@
 Antigravity (Google Cloud Code) provider — Gemini-format requests wrapped in
 the Cloud Code envelope, authenticated via Google PKCE OAuth.
 
-Wire format (from openproxy's adapters):
+Wire format:
   POST /v1internal:streamGenerateContent?alt=sse
   {
     "project": "<project from loadCodeAssist>",
@@ -83,7 +83,7 @@ def _build_gemini_payload(
     return payload
 
 
-# openproxy's map: some "friendly" names map to physical model ids
+# Some friendly model names map to physical agent model ids
 _MODEL_MAP = {
     "gemini-3.1-pro-high": "gemini-pro-agent",
     "gemini-3.1-pro-medium": "gemini-pro-agent",

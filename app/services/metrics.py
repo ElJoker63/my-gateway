@@ -1,7 +1,6 @@
 """
-Telemetry — lightweight in-process metrics with rolling percentile window.
-Ported (heavily trimmed) from openproxy's analytics: counters per provider,
-latency percentiles (p50/p95/p99) over a rolling window, and race stats.
+Telemetry — lightweight in-process metrics with rolling percentile window:
+counters per provider, latency percentiles (p50/p95/p99), and race stats.
 
 State is kept in memory (per worker) and mirrored to Redis so /api/metrics
 can be served by any worker without losing history on restart.

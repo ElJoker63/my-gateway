@@ -1,5 +1,5 @@
 """
-Combo registry — named provider+model chains ported from openproxy.
+Combo registry — named provider+model chains.
 
 A combo aliases a friendly name ("smart", "fast", "coder") to an ordered
 list of targets. Requests can use `model="combo:smart"` to route through it.

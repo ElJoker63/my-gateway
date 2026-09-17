@@ -136,9 +136,7 @@ MEMORY_SEARCH_TOP_K=20
 MEMORY_SCORE_THRESHOLD=0.3
 ```
 
-### New providers (ported from openproxy)
-
-OpenAI-compatible providers added by parity with [openproxy](https://github.com/soyelmismo/openproxy):
+### Additional providers
 
 | Provider   | Base URL                                        | Env prefix        | Notes                    |
 |------------|-------------------------------------------------|-------------------|--------------------------|
@@ -147,8 +145,6 @@ OpenAI-compatible providers added by parity with [openproxy](https://github.com/
 | OpenCode Go | `https://opencode.ai/zen/go/v1`                | `OPENCODE_GO_*`   | OpenCode's Go endpoints  |
 
 Each follows the global conventions: `X_API_KEY` / `X_API_KEYS` / `X_BASE_URL` / `X_DEFAULT_MODEL` / `X_RPM_LIMIT` / `X_EMBEDDING_MODEL`.
-
-> **OAuth-only upstreams (Kiro, Antigravity) are intentionally not ported**: they authenticate via Google/AWS CodeWhisperer OAuth user flows rather than static API keys, which is out of scope for this gateway's static-key model.
 
 ### OAuth-backed providers (Kiro, Antigravity)
 
