@@ -314,10 +314,18 @@ async def openai_chat_completions(
     # response_format, stream_options, etc.
     messages = [m.model_dump(exclude_none=True) for m in request.messages]
     request_extra = request.model_dump(exclude_none=True)
+
+    # Forward every sampling/generation param the provider understands, not just
+    # the tool-related ones (frequency_penalty, presence_penalty, n, user were
+    # previously validated and then silently dropped).
     extra_kwargs = {
         k: v
         for k, v in request_extra.items()
-        if k in {"tools", "tool_choice", "response_format", "stream_options"}
+        if k in {
+            "tools", "tool_choice", "response_format", "stream_options",
+            "frequency_penalty", "presence_penalty", "n", "user",
+            "logit_bias", "seed", "parallel_tool_calls",
+        }
     }
 
     # Handle stop as list
@@ -530,15 +538,22 @@ async def response_alias(
 async def list_models():
     """
     Return available models — required by some agents for initialization.
+    Uses the provider metadata registered at startup (capabilities included).
     """
-    settings = get_settings()
     from app.providers import list_providers
+    from app.services.model_sync import get_provider_metadata
 
     models = []
+    seen = set()
     for p in list_providers():
         provider = get_provider(p)
+        meta = get_provider_metadata(p)
+        model_id = getattr(provider, "default_model", "") or meta.get("default_model", "")
+        if not model_id or model_id in seen:
+            continue
+        seen.add(model_id)
         models.append({
-            "id": provider.default_model,
+            "id": model_id,
             "object": "model",
             "created": int(time.time()),
             "owned_by": p,
