@@ -11,8 +11,8 @@ export default defineConfig({
   },
   base: "/dashboard/",
   build: {
-    // Build straight into the FastAPI static mount
-    outDir: "../app/dashboard/dist",
+    // Build inside the dashboard package itself; the Go server serves it.
+    outDir: "dist",
     emptyOutDir: true,
   },
   server: {

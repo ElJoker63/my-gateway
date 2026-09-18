@@ -17,11 +17,14 @@ import (
 	"github.com/ElJoker63/my-gateway/gateway/internal/cache"
 	"github.com/ElJoker63/my-gateway/gateway/internal/combos"
 	"github.com/ElJoker63/my-gateway/gateway/internal/config"
+	"github.com/ElJoker63/my-gateway/gateway/internal/indexer"
 	"github.com/ElJoker63/my-gateway/gateway/internal/keymanager"
 	"github.com/ElJoker63/my-gateway/gateway/internal/memory"
 	"github.com/ElJoker63/my-gateway/gateway/internal/metrics"
 	"github.com/ElJoker63/my-gateway/gateway/internal/oauth"
 	"github.com/ElJoker63/my-gateway/gateway/internal/providers"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // Server is the gateway HTTP app.
@@ -34,6 +37,7 @@ type Server struct {
 	combos    *combos.Store
 	oauthMgr  *oauth.Manager
 	memoryMgr *memory.Service
+	indexer   *indexer.Indexer
 	providers map[string]providers.Provider
 	router    *chi.Mux
 	startedAt time.Time
@@ -94,6 +98,27 @@ func (s *Server) AttachInfra(
 	s.oauthMgr = om
 	s.memoryMgr = mem
 	s.breaker = br
+}
+
+// projectIndexer returns the project indexer lazily built over the memory service.
+func (s *Server) projectIndexer() *indexer.Indexer {
+	if s.indexer == nil {
+		s.indexer = &indexer.Indexer{
+			Mem:          s.memoryMgr,
+			Redis:        s.redisHandle(),
+			MaxFileBytes: s.cfg.MaxFileSizeKB * 1024,
+			Ignore:       s.cfg.IgnorePatterns,
+		}
+	}
+	return s.indexer
+}
+
+// redisHandle exposes the key manager's Redis client.
+func (s *Server) redisHandle() redis.UniversalClient {
+	if s.keys == nil {
+		return nil
+	}
+	return s.keys.Redis()
 }
 
 // ServeHTTP makes Server implement http.Handler.

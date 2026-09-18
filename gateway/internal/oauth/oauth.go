@@ -347,6 +347,47 @@ func (m *Manager) AccessToken(provider string) string {
 	return rec.AccessToken
 }
 
+// FetchAntigravityProject resolves and persists the Cloud Code project id for
+// a connected Antigravity session, via `loadCodeAssist`.
+func (m *Manager) FetchAntigravityProject() error {
+	rec := m.Get("antigravity")
+	if rec == nil || rec.AccessToken == "" {
+		return errors.New("antigravity not connected")
+	}
+	req, err := http.NewRequest(http.MethodPost,
+		"https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+		strings.NewReader(`{"metadata":{"ideType":"ANTIGRAVITY","pluginType":"GEMINI"}}`),
+	)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+rec.AccessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := m.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+		return fmt.Errorf("loadCodeAssist failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var out struct {
+		Project string `json:"cloudaicompanionProject"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return err
+	}
+	if out.Project == "" {
+		return errors.New("no project returned by loadCodeAssist")
+	}
+	if rec.Meta == nil {
+		rec.Meta = map[string]any{}
+	}
+	rec.Meta["project_id"] = out.Project
+	return m.save(context.Background(), "antigravity", rec)
+}
+
 // ProjectID returns a provider-specific extra (e.g. antigravity's cloud project).
 func (m *Manager) ProjectID(provider string) string {
 	rec := m.Get(provider)

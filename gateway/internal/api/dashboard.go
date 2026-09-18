@@ -25,13 +25,15 @@ func timeUntil(t time.Time) time.Duration { return time.Until(t) }
 func (s *Server) mountDashboard(mux *chi.Mux) {
 	dist := os.Getenv("DASHBOARD_DIST")
 	if dist == "" {
-		// Walk up from internal/api to reach the dashboard/dist path
+		// The dashboard ships at <repo>/dashboard/dist — either the Go module root
+		// (development) or the mounted path (Docker).
 		wd, err := os.Getwd()
 		if err == nil {
 			candidates := []string{
-				filepath.Join(wd, "..", "..", "app", "dashboard", "dist"),
-				filepath.Join(wd, "app", "dashboard", "dist"),
-				filepath.Join(wd, "dist"),
+				filepath.Join(wd, "dashboard", "dist"),
+				filepath.Join(wd, "..", "dashboard", "dist"),
+				filepath.Join(wd, "..", "..", "dashboard", "dist"),
+				"/app/dashboard/dist",
 			}
 			for _, c := range candidates {
 				if st, err := os.Stat(c); err == nil && st.IsDir() {

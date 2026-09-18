@@ -115,6 +115,48 @@ func (s *Service) Upsert(ctx context.Context, collection string, points []Point)
 	return nil
 }
 
+// UpsertBatch embeds each point's text payload and stores them in one batch.
+// Used by the project indexer — the vector comes from the shared embedding
+// endpoint, so no local model is needed in the Go build.
+func (s *Service) UpsertBatch(ctx context.Context, project string, points []Point) error {
+	if len(points) == 0 {
+		return nil
+	}
+	collection := CollectionName(project)
+	if err := s.EnsureCollection(ctx, collection); err != nil {
+		return err
+	}
+
+	texts := make([]string, 0, len(points))
+	for _, p := range points {
+		texts = append(texts, fmt.Sprint(p.Payload["text"]))
+	}
+	vecs := EmbedBatch(ctx, texts)
+	if len(vecs) == 0 {
+		return fmt.Errorf("no embeddings returned from provider")
+	}
+	if len(vecs) != len(points) {
+		return fmt.Errorf("embedding/API mismatch: %d texts vs %d vectors", len(texts), len(vecs))
+	}
+
+	out := make([]Point, len(points))
+	for i, p := range points {
+		out[i] = Point{
+			ID:      p.ID,
+			Payload: p.Payload,
+			Vector:  vecs[i],
+		}
+	}
+
+	// Default Qdrant expects a UUID per point; derive stable ones from the payload.
+	for i := range out {
+		if out[i].ID == "" {
+			out[i].ID = fmt.Sprintf("%d-%d", time.Now().UnixNano(), i)
+		}
+	}
+	return s.Upsert(ctx, collection, out)
+}
+
 // Search runs a nearest-neighbors query.
 func (s *Service) Search(ctx context.Context, collection string, vector []float32, limit int, threshold float64) ([]Point, error) {
 	body := map[string]any{

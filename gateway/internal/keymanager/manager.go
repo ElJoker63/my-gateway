@@ -107,6 +107,12 @@ func (m *Manager) RegisterPool(provider string, keys []string, rpmPerKey int) {
 	slog.Info("key pool registered", "provider", provider, "keys", len(infos), "rpm_per_key", rpmPerKey)
 }
 
+// Redis exposes the underlying Redis client (used by other services to share
+// a single connection).
+func (m *Manager) Redis() redis.UniversalClient {
+	return m.rdb
+}
+
 // AddKey appends a key to an existing pool (or creates one).
 // Returns false if the key is already registered.
 func (m *Manager) AddKey(provider, key string) bool {

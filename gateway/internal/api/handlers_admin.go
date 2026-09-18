@@ -1,13 +1,16 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ElJoker63/my-gateway/gateway/internal/combos"
+	"github.com/ElJoker63/my-gateway/gateway/internal/indexer"
 )
 
 // ---------- Memory handlers ----------
@@ -131,6 +134,21 @@ func (s *Server) handleIndexProject(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = lastPathComponent(body.Path)
 	}
+
+	// The actual indexing runs in the background; the response is immediate
+	// because this is a long-running job on the filesystem.
+	ix := s.projectIndexer()
+	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		res, err := ix.Run(ctx, indexer.Options{Path: body.Path, Project: name, FilePatterns: body.FilePatterns})
+		if err != nil {
+			slog.Warn("project indexing failed", "project", name, "err", err)
+			return
+		}
+		slog.Info("project indexed", "project", name, "memories", res.Memories, "files", res.FilesScanned)
+	}()
+
 	s.writeJSON(w, http.StatusAccepted, map[string]any{
 		"status":  "indexing_started",
 		"project": name,
