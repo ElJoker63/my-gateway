@@ -8,25 +8,21 @@
 .env.*
 !.env.example
 
-# Test / dev artifacts
+# Tests and dev artifacts
 tests/
-pytest.ini
-.mypy_cache/
 .pytest_cache/
-.tox/
 .coverage
 htmlcov/
 
 # Docs and site
 docs/
 mkdocs.yml
-MEJORAS.md
 
-# Python noise
+# Languages noise
 __pycache__/
 *.pyc
-*.pyo
-*.egg-info/
+node_modules/
+dashboard/dist/
 
 # Virtualenvs
 .venv/
@@ -38,4 +34,3 @@ data/
 # Editors
 .idea/
 .vscode/
-app/dashboard/dist/

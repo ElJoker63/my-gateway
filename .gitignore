@@ -10,6 +10,9 @@ build/
 .pytest_cache/
 .tox/
 
+# Node
+node_modules/
+
 # Virtual environments
 .venv/
 venv/
@@ -31,7 +34,3 @@ data/
 # OS
 .DS_Store
 Thumbs.db
-/dashboard/node_modules
-
-# Dashboard build
-dashboard/node_modules/

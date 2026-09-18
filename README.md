@@ -8,7 +8,7 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 
 ## ✨ Features
 
-- **Go Backend** — The core gateway is a Go service (in `gateway/`) with chi routing, atomic key acquisition, and a self-contained footprint. Python implementation kept under `app/` for compatibility.
+- **Go Backend** — The gateway is a Go service in `gateway/` with chi routing, atomic key acquisition, and a self-contained footprint. A desktop shell bundles it via Wails; the Docker image runs it headless.
 - **Desktop App** — Wails shell wraps the same Go gateway + Vue dashboard into a single binary for Windows / macOS / Linux.
 - **Multi-Agent Compatible** — Works with Cursor, OpenHands, ZCode, and any OpenAI-compatible agent
 - **Multi-API Key Pool & Rotation** — Support multiple API keys per provider with automatic load balancing, per-key rate limiting, and failure fallback
@@ -38,12 +38,12 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 
 ```
      AI Agent Client
-(Cursor / OpenHands / zcode)
+(Cursor / OpenHands / ZCode)
           │
           │  Bearer Token
           ▼
    ┌──────────────┐
-   │  AI Gateway   │  FastAPI :8000
+   │  AI Gateway   │  Go + chi :8000
    │    API        │
    └──────┬───────┘
           │
