@@ -1,10 +1,38 @@
+# Two flavors: legacy Python gateway and the new Go gateway.
+# Pick one; both serve the same dashboard and API.
+
 services:
 
-  gateway:
+  # --- Go gateway (recommended) ---
+  gateway-go:
+    build:
+      context: .
+      dockerfile: Dockerfile.go
+    container_name: ai-gateway-go
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      REDIS_HOST: redis
+      QDRANT_HOST: qdrant
+    volumes:
+      - ./data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - gateway-net
+
+  # --- Legacy Python gateway (kept for reference) ---
+  gateway-python:
     build: .
     container_name: ai-gateway
     ports:
-      - "8000:8000"
+      - "8001:8000"
     env_file:
       - .env
     volumes:
@@ -17,6 +45,7 @@ services:
     restart: unless-stopped
     networks:
       - gateway-net
+    profiles: ["python"]
 
   redis:
     image: redis:7-alpine

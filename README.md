@@ -8,7 +8,9 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 
 ## ✨ Features
 
-- **Multi-Agent Compatible** — Works with Cursor, OpenHands, zcode, and any OpenAI-compatible agent
+- **Go Backend** — The core gateway is a Go service (in `gateway/`) with chi routing, atomic key acquisition, and a self-contained footprint. Python implementation kept under `app/` for compatibility.
+- **Desktop App** — Wails shell wraps the same Go gateway + Vue dashboard into a single binary for Windows / macOS / Linux.
+- **Multi-Agent Compatible** — Works with Cursor, OpenHands, ZCode, and any OpenAI-compatible agent
 - **Multi-API Key Pool & Rotation** — Support multiple API keys per provider with automatic load balancing, per-key rate limiting, and failure fallback
 - **Three API Formats** — `/v1/chat/completions`, `/v1/messages`, `/api/chat`
 - **SSE Streaming** — Real-time streaming support for all chat endpoints

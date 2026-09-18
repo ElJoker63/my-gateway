@@ -15,7 +15,9 @@ An intelligent multi-provider AI gateway & orchestration platform. Connects mult
 - **Vector Memory** — Per-project persistent memory using Qdrant
 - **Context Enrichment** — Automatically injects relevant project context into LLM requests
 - **Project Indexing** — Scan and index entire codebases for memory
-- **Multi-Provider** — NVIDIA API, OpenAI-compatible, Groq, Ollama Cloud (and remote instances), easily extensible
+- **Go Backend** — core gateway is a Go service (see `gateway/`) with atomic key management, SSE, and metrics
+- **Desktop App** — Wails shell bundles the gateway + dashboard into one binary
+- **Multi-Provider** — 30+ providers including NVIDIA, OpenAI, Groq, Ollama, OpenRouter, Cloudflare, Nous, Kilocode, plus OAuth-backed Kiro and Antigravity
 - **Dockerized** — One command to run everything
 
 ---
