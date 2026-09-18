@@ -74,6 +74,12 @@ func (s *Store) Save(ctx context.Context, c *Combo) error {
 	if c.CreatedAt.IsZero() {
 		c.CreatedAt = time.Now()
 	}
+	s.mu.Lock()
+	s.local[c.Name] = c
+	s.mu.Unlock()
+	if s.rdb == nil {
+		return nil
+	}
 	buf, err := json.Marshal(c)
 	if err != nil {
 		return err
@@ -84,9 +90,6 @@ func (s *Store) Save(ctx context.Context, c *Combo) error {
 	if _, err := pipe.Exec(ctx); err != nil {
 		slog.Warn("combo persist to Redis failed", "name", c.Name, "err", err)
 	}
-	s.mu.Lock()
-	s.local[c.Name] = c
-	s.mu.Unlock()
 	return nil
 }
 
@@ -100,6 +103,9 @@ func (s *Store) Get(ctx context.Context, name string) (*Combo, bool) {
 		return c, true
 	}
 	s.mu.RUnlock()
+	if s.rdb == nil {
+		return nil, false
+	}
 
 	raw, err := s.rdb.Get(ctx, comboPrefix+name).Result()
 	if err != nil {
@@ -117,6 +123,15 @@ func (s *Store) Get(ctx context.Context, name string) (*Combo, bool) {
 
 // List returns every registered combo.
 func (s *Store) List(ctx context.Context) []*Combo {
+	if s.rdb == nil {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		out := make([]*Combo, 0, len(s.local))
+		for _, c := range s.local {
+			out = append(out, c)
+		}
+		return out
+	}
 	names, err := s.rdb.SMembers(ctx, comboIndex).Result()
 	out := []*Combo{}
 	if err == nil {
@@ -143,10 +158,12 @@ func (s *Store) List(ctx context.Context) []*Combo {
 // Delete removes a combo.
 func (s *Store) Delete(ctx context.Context, name string) bool {
 	name = strings.TrimPrefix(name, "combo:")
-	pipe := s.rdb.TxPipeline()
-	pipe.Del(ctx, comboPrefix+name)
-	pipe.SRem(ctx, comboIndex, name)
-	_, _ = pipe.Exec(ctx)
+	if s.rdb != nil {
+		pipe := s.rdb.TxPipeline()
+		pipe.Del(ctx, comboPrefix+name)
+		pipe.SRem(ctx, comboIndex, name)
+		_, _ = pipe.Exec(ctx)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, existed := s.local[name]
