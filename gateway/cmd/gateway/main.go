@@ -21,6 +21,7 @@ import (
 	"github.com/ElJoker63/my-gateway/gateway/internal/metrics"
 	"github.com/ElJoker63/my-gateway/gateway/internal/oauth"
 	"github.com/ElJoker63/my-gateway/gateway/internal/providers"
+	"github.com/ElJoker63/my-gateway/gateway/internal/users"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -77,10 +78,10 @@ func run() error {
 	// Services
 	keys := keymanager.New(rdb, cfg.DefaultProvider, cfg.RateLimitWaitSecs)
 	for _, name := range config.ProviderNames() {
-		keys.RegisterPool(name, cfg.KeysFor(name), cfg.RPMFor(name))
+		keys.RegisterPool(keymanager.TenantSystem, name, cfg.KeysFor(name), cfg.RPMFor(name))
 	}
 	// Reload keys added at runtime via the API
-	keys.PersistReload(context.Background())
+	keys.PersistReload(context.Background(), keymanager.TenantSystem)
 
 	br := breaker.New(cfg.CircuitFailureThreshold, cfg.CircuitUnhealthySecs)
 	cacheStore := cache.New(rdb, cfg.CacheTTLSecs)
@@ -99,7 +100,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	srv.AttachInfra(keys, cacheStore, comboStore, oauthMgr, mem, br)
+	srv.AttachInfra(keys, cacheStore, comboStore, oauthMgr, mem, br, users.New(rdb))
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),

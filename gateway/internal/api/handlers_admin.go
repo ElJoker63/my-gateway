@@ -297,6 +297,7 @@ func (s *Server) handleCacheStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleKeysStatus(w http.ResponseWriter, r *http.Request) {
+	tenant := requestTenant(r.Context())
 	provider := r.URL.Query().Get("provider")
 	if provider == "" {
 		if s.keys == nil {
@@ -305,7 +306,7 @@ func (s *Server) handleKeysStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		out := map[string]any{}
 		for _, name := range s.keys.Providers() {
-			out[name] = poolStatus(s, name)
+			out[name] = poolStatus(s, tenant, name)
 		}
 		s.writeJSON(w, http.StatusOK, out)
 		return
@@ -314,7 +315,7 @@ func (s *Server) handleKeysStatus(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusNotFound, "provider not found")
 		return
 	}
-	s.writeJSON(w, http.StatusOK, poolStatus(s, provider))
+	s.writeJSON(w, http.StatusOK, poolStatus(s, tenant, provider))
 }
 
 func (s *Server) handleRateLimitStatus(w http.ResponseWriter, r *http.Request) {
@@ -334,7 +335,8 @@ func (s *Server) handleAddProviderKey(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "key is required")
 		return
 	}
-	if !s.keys.AddKey(name, strings.TrimSpace(body.Key)) {
+	tenant := requestTenant(r.Context())
+	if !s.keys.AddKey(tenant, name, strings.TrimSpace(body.Key)) {
 		s.writeError(w, http.StatusBadRequest, "key already exists")
 		return
 	}
@@ -350,8 +352,8 @@ func conditionalStatus(ok bool) string {
 	return "unhealthy"
 }
 
-func poolStatus(s *Server, provider string) map[string]any {
-	pool := s.keys.Pool(provider)
+func poolStatus(s *Server, tenant string, provider string) map[string]any {
+	pool := s.keys.Pool(tenant, provider)
 	if pool == nil {
 		return map[string]any{
 			"provider":       provider,

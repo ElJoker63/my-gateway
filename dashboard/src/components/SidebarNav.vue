@@ -20,6 +20,7 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { HugeiconsIcon } from "@hugeicons/vue";
 import {
@@ -30,17 +31,40 @@ import {
   ChartUpIcon,
   LockIcon,
   Settings01Icon,
+  UserGroupIcon,
+  UserCircleIcon,
 } from "@hugeicons/core-free-icons";
+import { authState } from "@/stores/auth";
+import { userState } from "@/stores/user";
 
 const route = useRoute();
 
-const links = [
+const base = [
   { to: "/", label: "Overview", icon: DashboardSquare01Icon },
   { to: "/providers", label: "Providers", icon: ApiGatewayIcon },
   { to: "/keys", label: "API Keys", icon: Key01Icon },
   { to: "/combos", label: "Combos", icon: Layers01Icon },
   { to: "/metrics", label: "Metrics", icon: ChartUpIcon },
   { to: "/oauth", label: "OAuth", icon: LockIcon },
-  { to: "/settings", label: "Settings", icon: Settings01Icon },
 ];
+
+const links = computed(() => {
+  const list = [...base];
+  if (authState.apiKey && !userState.user?.is_admin) {
+    // regular users see their own account
+    list.push({ to: "/account", label: "My Account", icon: UserCircleIcon });
+  }
+  if (userState.isAdmin) {
+    list.push({ to: "/users", label: "Users", icon: UserGroupIcon });
+  }
+  list.push({ to: "/settings", label: "Settings", icon: Settings01Icon });
+  return list;
+});
 </script>
+
+<style scoped>
+.nav-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+</style>

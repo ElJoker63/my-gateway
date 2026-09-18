@@ -299,7 +299,7 @@ func (s *Server) resolveAuth(ctx context.Context, providerName string) (string, 
 	if s.keys == nil {
 		return "", errors.New("key manager not ready")
 	}
-	ki, err := s.keys.Acquire(ctx, providerName)
+	ki, err := s.keys.Acquire(ctx, requestTenant(ctx), providerName)
 	if err != nil {
 		return "", err
 	}

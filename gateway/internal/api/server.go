@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"log/slog"
@@ -23,6 +24,8 @@ import (
 	"github.com/ElJoker63/my-gateway/gateway/internal/metrics"
 	"github.com/ElJoker63/my-gateway/gateway/internal/oauth"
 	"github.com/ElJoker63/my-gateway/gateway/internal/providers"
+	"github.com/ElJoker63/my-gateway/gateway/internal/security"
+	"github.com/ElJoker63/my-gateway/gateway/internal/users"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -36,11 +39,13 @@ type Server struct {
 	metrics   *metrics.Store
 	combos    *combos.Store
 	oauthMgr  *oauth.Manager
+	users     *users.Store
 	memoryMgr *memory.Service
 	indexer   *indexer.Indexer
 	providers map[string]providers.Provider
 	router    *chi.Mux
 	startedAt time.Time
+	authRate  *security.AuthLimiter
 }
 
 // NewServer builds the wired gateway.
@@ -91,6 +96,7 @@ func (s *Server) AttachInfra(
 	om *oauth.Manager,
 	mem *memory.Service,
 	br *breaker.Breaker,
+	us *users.Store,
 ) {
 	s.keys = keys
 	s.cache = c
@@ -98,6 +104,8 @@ func (s *Server) AttachInfra(
 	s.oauthMgr = om
 	s.memoryMgr = mem
 	s.breaker = br
+	s.users = us
+	s.authRate = security.NewAuthLimiter(20, time.Minute) // brute-force guard
 }
 
 // projectIndexer returns the project indexer lazily built over the memory service.
@@ -174,13 +182,22 @@ func (s *Server) mount() {
 		r.Get("/combos/{name}", s.handleCombosGet)
 		r.Delete("/combos/{name}", s.handleCombosDelete)
 
-		// OAuth (kiro / antigravity)
-		r.Post("/oauth/{provider}/start", s.handleOAuthStart)
-		r.Get("/oauth/{provider}/poll", s.handleOAuthPoll)
-		r.Get("/oauth/{provider}/callback", s.handleOAuthCallback)
-		r.Get("/oauth/status", s.handleOAuthStatus)
-		r.Delete("/oauth/{provider}", s.handleOAuthDisconnect)
-	})
+			// OAuth (kiro / antigravity)
+			r.Post("/oauth/{provider}/start", s.handleOAuthStart)
+			r.Get("/oauth/{provider}/poll", s.handleOAuthPoll)
+			r.Get("/oauth/{provider}/callback", s.handleOAuthCallback)
+			r.Get("/oauth/status", s.handleOAuthStatus)
+			r.Delete("/oauth/{provider}", s.handleOAuthDisconnect)
+
+			// Users — admin CRUD + self-service
+			r.Get("/admin/users", s.handleAdminListUsers)
+			r.Post("/admin/users", s.handleAdminCreateUser)
+			r.Get("/admin/users/{id}", s.handleAdminGetUser)
+			r.Delete("/admin/users/{id}", s.handleAdminDeleteUser)
+			r.Post("/admin/users/{id}/rotate", s.handleAdminRotateUserKey)
+			r.Get("/me", s.handleMe)
+			r.Get("/me/usage", s.handleMeUsage)
+		})
 
 	// Chat endpoints
 	r.Route("/v1", func(r chi.Router) {
@@ -229,7 +246,10 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	})(next)
 }
 
-// authMiddleware enforces the gateway API key for protected routes.
+// authMiddleware enforces authentication. In order:
+//   1) master key (system tenant, full admin)
+//   2) user keys (gwu_*, scoped to one's own tenant)
+// The resolved tenant is stored in the request context for handlers to read.
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public routes
@@ -240,7 +260,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		if !s.cfg.AuthEnabled() {
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(withTenant(r.Context(), keymanager.TenantSystem)))
 			return
 		}
 
@@ -248,13 +268,69 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		if key == "" {
 			key = r.Header.Get("X-API-Key")
 		}
-		if key == "" || key != s.cfg.GatewayAPIKey {
-			s.writeError(w, http.StatusUnauthorized, "Invalid or missing API key")
+		if key == "" {
+			s.writeError(w, http.StatusUnauthorized, "Missing API key")
 			return
 		}
-		next.ServeHTTP(w, r)
+
+		// Brute-force guard per source (via X-Forwarded-For / RemoteAddr).
+		clientIP := r.RemoteAddr
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			if parts := strings.Split(fwd, ","); len(parts) > 0 {
+				clientIP = strings.TrimSpace(parts[0])
+			}
+		}
+		if s.authRate != nil && !s.authRate.Allow(clientIP) {
+			s.writeError(w, http.StatusTooManyRequests, "too many auth attempts, try again in a minute")
+			return
+		}
+
+		// Master key = system tenant. Constant-time compare to defeat timing side-channels.
+		if security.EqualFold(key, s.cfg.GatewayAPIKey) {
+			if s.authRate != nil {
+				s.authRate.Reset(clientIP)
+			}
+			next.ServeHTTP(w, r.WithContext(withTenant(r.Context(), keymanager.TenantSystem)))
+			return
+		}
+
+		// User keys (gwu_*)
+		if s.users != nil && strings.HasPrefix(key, users.KeyPrefix) {
+			if u, ok := s.users.Lookup(r.Context(), key); ok && !u.Disabled {
+				next.ServeHTTP(w, r.WithContext(withTenantAndUser(r.Context(), u.ID, u.ID)))
+				return
+			}
+		}
+		s.writeError(w, http.StatusUnauthorized, "Invalid or missing API key")
 	})
 }
+
+// requestTenant reads the request tenant; absent means "system".
+func requestTenant(ctx context.Context) string {
+	if t, _ := ctx.Value(ctxTenantKey{}).(string); t != "" {
+		return t
+	}
+	return keymanager.TenantSystem
+}
+
+// requestUserID reads the authenticated user ID, or "".
+func requestUserID(ctx context.Context) string {
+	u, _ := ctx.Value(ctxUserIDKey{}).(string)
+	return u
+}
+
+type ctxTenantKey struct{}
+type ctxUserIDKey struct{}
+
+func withTenant(ctx context.Context, tenant string) context.Context {
+	return context.WithValue(ctx, ctxTenantKey{}, tenant)
+}
+
+func withTenantAndUser(ctx context.Context, tenant, userID string) context.Context {
+	ctx = context.WithValue(ctx, ctxTenantKey{}, tenant)
+	return context.WithValue(ctx, ctxUserIDKey{}, userID)
+}
+
 
 func bearerToken(r *http.Request) string {
 	h := r.Header.Get("Authorization")

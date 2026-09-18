@@ -15,6 +15,8 @@ const routes = [
   { path: "/metrics", name: "metrics", component: () => import("@/views/MetricsView.vue") },
   { path: "/oauth", name: "oauth", component: () => import("@/views/OAuthView.vue") },
   { path: "/oauth/callback", name: "oauth-callback", component: () => import("@/views/OAuthCallbackView.vue"), meta: { public: true } },
+  { path: "/users", name: "users", component: () => import("@/views/UsersView.vue") },
+  { path: "/account", name: "account", component: () => import("@/views/MyAccountView.vue") },
   { path: "/settings", name: "settings", component: () => import("@/views/SettingsView.vue") },
 ];
 

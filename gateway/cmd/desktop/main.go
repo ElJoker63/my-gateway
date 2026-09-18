@@ -27,6 +27,7 @@ import (
 	"github.com/ElJoker63/my-gateway/gateway/internal/memory"
 	"github.com/ElJoker63/my-gateway/gateway/internal/oauth"
 	"github.com/ElJoker63/my-gateway/gateway/internal/providers"
+	"github.com/ElJoker63/my-gateway/gateway/internal/users"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -77,9 +78,9 @@ func (a *App) startGateway() error {
 
 	keys := keymanager.New(rdb, cfg.DefaultProvider, cfg.RateLimitWaitSecs)
 	for _, name := range config.ProviderNames() {
-		keys.RegisterPool(name, cfg.KeysFor(name), cfg.RPMFor(name))
+		keys.RegisterPool(keymanager.TenantSystem, name, cfg.KeysFor(name), cfg.RPMFor(name))
 	}
-	keys.PersistReload(context.Background())
+	keys.PersistReload(context.Background(), keymanager.TenantSystem)
 
 	mem := memory.New(cfg.QdrantHost, cfg.QdrantPort, cfg.QdrantKey, cfg.EmbeddingDimension)
 	br := breaker.New(cfg.CircuitFailureThreshold, cfg.CircuitUnhealthySecs)
@@ -96,7 +97,7 @@ func (a *App) startGateway() error {
 	if err != nil {
 		return err
 	}
-	srv.AttachInfra(keys, cacheStore, comboStore, oauthMgr, mem, br)
+	srv.AttachInfra(keys, cacheStore, comboStore, oauthMgr, mem, br, users.New(rdb))
 
 	a.server = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),

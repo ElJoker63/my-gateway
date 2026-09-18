@@ -32,11 +32,14 @@ type AttemptFunc func(ctx context.Context, target combos.Target) (any, error)
 type Options struct {
 	AttemptTimeout time.Duration
 	Parallelism    int
+	// Tenant selects whose key pools to use for ordering / fallbacks.
+	// Empty string = system pool (env-provided keys).
+	Tenant string
 }
 
 // Execute runs a combo under its strategy.
 func Execute(ctx context.Context, combo *combos.Combo, km *keymanager.Manager, attempt AttemptFunc, opts Options) (*Result, error) {
-	targets := orderTargets(combo, km)
+	targets := orderTargets(combo, km, opts.Tenant)
 	if len(targets) == 0 {
 		return nil, errors.New("combo has no targets")
 	}
@@ -127,27 +130,25 @@ func failover(ctx context.Context, targets []combos.Target, attempt AttemptFunc,
 }
 
 // orderTargets orders a combo's targets per strategy.
-func orderTargets(combo *combos.Combo, km *keymanager.Manager) []combos.Target {
+func orderTargets(combo *combos.Combo, km *keymanager.Manager, tenant string) []combos.Target {
 	out := make([]combos.Target, len(combo.Targets))
 	copy(out, combo.Targets)
 
 	switch combo.Strategy {
 	case combos.StrategyLeastUsed:
-		sortLeastUsed(out, km)
+		sortLeastUsed(out, km, tenant)
 	}
-	// strict / round_robin / race keep the declared order; round_robin's
-	// rotation happens at the KeyManager level when each target is tried.
 	return out
 }
 
 // sortLeastUsed orders targets ascending by current pool usage.
-func sortLeastUsed(targets []combos.Target, km *keymanager.Manager) {
+func sortLeastUsed(targets []combos.Target, km *keymanager.Manager, tenant string) {
 	if km == nil {
 		return
 	}
 	usage := make(map[string]int, len(targets))
 	for _, t := range targets {
-		if pool := km.Pool(t.Provider); pool != nil {
+		if pool := km.Pool(tenant, t.Provider); pool != nil {
 			sum := 0
 			for _, k := range pool.Keys {
 				sum += k.RequestsUsed

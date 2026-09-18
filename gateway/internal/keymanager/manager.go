@@ -1,11 +1,6 @@
 // Package keymanager owns the per-provider API key pools.
-//
-// Semantics come from the gateway spec:
-//   - Redis sliding-window per-key rate limiting, atomically claimed via Lua.
-//   - Both "least_used" and "round_robin" strategies.
-//   - Error cooldown per key after 429/401/403 from the upstream.
-//   - Stable per-key fingerprint (sha-256 prefix) as the identity — masks are
-//     only a UI convenience and can collide, so they're not identity.
+// Now multi-tenant: pools live per (tenant, provider). The "system" tenant holds
+// the env-provided keys; each gateway user has their own tenant keyed by id.
 package keymanager
 
 import (
@@ -30,6 +25,9 @@ const (
 	defaultWindowMs = 60_000
 )
 
+// TenantID for the shared system pool (env-provided keys).
+const TenantSystem = "system"
+
 // Strategies accepted by Acquire.
 const (
 	StrategyLeastUsed  = "least_used"
@@ -38,7 +36,7 @@ const (
 
 // KeyInfo describes one pool entry.
 type KeyInfo struct {
-	Key           string `json:"-"` // full key, never logged
+	Key           string `json:"-"`
 	Fingerprint   string `json:"id"`
 	Display       string `json:"display"`
 	Index         int    `json:"index"`
@@ -46,20 +44,20 @@ type KeyInfo struct {
 	RequestsLimit int    `json:"requests_limit"`
 }
 
-// Pool is one provider's set of keys.
+// Pool is one provider's set of keys (for one tenant).
 type Pool struct {
 	Provider  string
 	Keys      []*KeyInfo
 	RPMPerKey int
 	rrCursor  atomic.Uint32
-	mu        sync.Mutex // guards Keys slice mutations
+	mu        sync.Mutex
 }
 
-// ErrNoKeys is returned when a provider has no registered keys.
-var ErrNoKeys = errors.New("no key pool registered for provider")
-
-// ErrAllLimited is returned when every key is exhausted or in cooldown.
-var ErrAllLimited = errors.New("all keys are in cooldown or rate-limited")
+// Errors.
+var (
+	ErrNoKeys     = errors.New("no key pool registered for provider")
+	ErrAllLimited = errors.New("all keys are in cooldown or rate-limited")
+)
 
 // Manager owns all pools plus the atomic acquire path over Redis.
 type Manager struct {
@@ -67,13 +65,13 @@ type Manager struct {
 	strategy string
 	waitFor  time.Duration
 
-	mu    sync.RWMutex
-	pools map[string]*Pool
+	mu    sync.RWMutex                        // guards pools map
+	pools map[string]map[string]*Pool        // [tenant][provider] → pool
 
-	luaSha atomic.Value // string, loaded on first use
+	luaSha atomic.Value
 }
 
-// New returns a Manager bound to the given Redis client.
+// New returns a Manager bound to Redis.
 func New(rdb redis.UniversalClient, strategy string, waitTimeoutSecs int) *Manager {
 	if strategy == "" {
 		strategy = StrategyLeastUsed
@@ -82,12 +80,63 @@ func New(rdb redis.UniversalClient, strategy string, waitTimeoutSecs int) *Manag
 		rdb:      rdb,
 		strategy: strategy,
 		waitFor:  time.Duration(waitTimeoutSecs) * time.Second,
-		pools:    make(map[string]*Pool),
+		pools:    map[string]map[string]*Pool{},
 	}
 }
 
-// RegisterPool (re)registers a provider's keys.
-func (m *Manager) RegisterPool(provider string, keys []string, rpmPerKey int) {
+// Redis exposes the underlying client.
+func (m *Manager) Redis() redis.UniversalClient { return m.rdb }
+
+// HasPool reports whether (tenant, provider) has keys.
+func (m *Manager) HasPool(tenant, provider string) bool {
+	return m.getPool(tenant, provider) != nil
+}
+
+// Pool returns the pool for (tenant, provider), or nil.
+func (m *Manager) Pool(tenant, provider string) *Pool {
+	return m.getPool(tenant, provider)
+}
+
+// Providers lists every distinct provider name across all tenants.
+func (m *Manager) Providers() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	seen := map[string]bool{}
+	for _, byProvider := range m.pools {
+		for name := range byProvider {
+			seen[name] = true
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for name := range seen {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Tenants lists every tenant seen so far.
+func (m *Manager) Tenants() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]string, 0, len(m.pools))
+	for t := range m.pools {
+		out = append(out, t)
+	}
+	return out
+}
+
+func (m *Manager) getPool(tenant, provider string) *Pool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if byProvider, ok := m.pools[tenant]; ok {
+		return byProvider[provider]
+	}
+	return nil
+}
+
+// RegisterPool (re)registers (tenant, provider)'s keys.
+func (m *Manager) RegisterPool(tenant, provider string, keys []string, rpmPerKey int) {
 	if rpmPerKey <= 0 {
 		rpmPerKey = 35
 	}
@@ -102,117 +151,79 @@ func (m *Manager) RegisterPool(provider string, keys []string, rpmPerKey int) {
 		})
 	}
 	m.mu.Lock()
-	m.pools[provider] = &Pool{Provider: provider, Keys: infos, RPMPerKey: rpmPerKey}
+	if m.pools[tenant] == nil {
+		m.pools[tenant] = map[string]*Pool{}
+	}
+	m.pools[tenant][provider] = &Pool{Provider: provider, Keys: infos, RPMPerKey: rpmPerKey}
 	m.mu.Unlock()
-	slog.Info("key pool registered", "provider", provider, "keys", len(infos), "rpm_per_key", rpmPerKey)
+	slog.Info("key pool registered", "tenant", tenant, "provider", provider, "keys", len(infos))
 }
 
-// Redis exposes the underlying Redis client (used by other services to share
-// a single connection).
-func (m *Manager) Redis() redis.UniversalClient {
-	return m.rdb
-}
-
-// AddKey appends a key to an existing pool (or creates one).
-// Returns false if the key is already registered.
-func (m *Manager) AddKey(provider, key string) bool {
+// AddKey appends a key.
+func (m *Manager) AddKey(tenant, provider, key string) bool {
 	m.mu.RLock()
-	pool, exists := m.pools[provider]
+	pool, exists := m.pools[tenant]
 	m.mu.RUnlock()
 	if !exists {
-		m.RegisterPool(provider, []string{key}, 0)
+		m.RegisterPool(tenant, provider, []string{key}, 0)
 		return true
 	}
-
+	p := pool[provider]
+	if p == nil {
+		m.RegisterPool(tenant, provider, []string{key}, 0)
+		return true
+	}
 	fp := fingerprint(key)
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
-	for _, ki := range pool.Keys {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, ki := range p.Keys {
 		if ki.Fingerprint == fp {
 			return false
 		}
 	}
-	pool.Keys = append(pool.Keys, &KeyInfo{
+	p.Keys = append(p.Keys, &KeyInfo{
 		Key:           key,
 		Fingerprint:   fp,
 		Display:       maskKey(key),
-		Index:         len(pool.Keys),
-		RequestsLimit: pool.RPMPerKey,
+		Index:         len(p.Keys),
+		RequestsLimit: p.RPMPerKey,
 	})
-	slog.Info("key added to pool", "provider", provider, "key", maskKey(key))
 	return true
 }
 
-// HasPool reports whether a provider has keys registered.
-func (m *Manager) HasPool(provider string) bool {
-	pool := m.getPool(provider)
-	return pool != nil && len(pool.Keys) > 0
-}
-
-// Pool returns the named pool (or nil).
-func (m *Manager) Pool(provider string) *Pool {
-	return m.getPool(provider)
-}
-
-// Providers returns all provider names with pools.
-func (m *Manager) Providers() []string {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	out := make([]string, 0, len(m.pools))
-	for name := range m.pools {
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func (m *Manager) getPool(provider string) *Pool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.pools[provider]
-}
-
-// keyStatus is one snapshot of a key's current state in Redis.
+// keyStatus is one snapshot of a key's current state.
 type keyStatus struct {
 	key        *KeyInfo
 	used       int
 	limited    bool
 	cooldown   bool
-	retryAfter float64 // seconds until the sliding window frees a slot
+	retryAfter float64
 }
 
-// Acquire picks a key and atomically consumes one rate-limit slot.
-//
-// Snapshot → order claim attempts per strategy → for each candidate, one Lua
-// call checks cooldown + window and consumes a slot atomically. A candidate
-// that lost the race just falls through to the next.
-func (m *Manager) Acquire(ctx context.Context, provider string) (*KeyInfo, error) {
-	pool := m.getPool(provider)
+// Acquire picks a key for (tenant, provider).
+func (m *Manager) Acquire(ctx context.Context, tenant, provider string) (*KeyInfo, error) {
+	pool := m.getPool(tenant, provider)
 	if pool == nil || len(pool.Keys) == 0 {
-		return nil, fmt.Errorf("%w: %s", ErrNoKeys, provider)
+		return nil, fmt.Errorf("%w (tenant=%s provider=%s)", ErrNoKeys, tenant, provider)
 	}
 
 	deadline := time.Now().Add(m.waitFor)
 	for {
-		statuses := m.snapshotPool(ctx, pool)
-
-		// Strategy-driven ordering
+		statuses := m.snapshotPool(ctx, pool, tenant)
 		ordered := m.order(statuses, pool)
 
 		for _, st := range ordered {
 			if st.cooldown || st.limited {
 				continue
 			}
-			ok, err := m.claim(ctx, provider, st.key)
+			ok, err := m.claim(ctx, tenant, provider, st.key)
 			if err != nil {
-				// Redis failure — fail open, hand out the candidate.
 				slog.Warn("claim failed, failing open", "provider", provider, "err", err)
 				return cloneKey(st.key), nil
 			}
 			if ok {
 				st.key.RequestsUsed = st.used + 1
-				s := *st.key
-				return &s, nil
+				return cloneKey(st.key), nil
 			}
 		}
 
@@ -220,7 +231,6 @@ func (m *Manager) Acquire(ctx context.Context, provider string) (*KeyInfo, error
 			return nil, fmt.Errorf("%w (provider %s)", ErrAllLimited, provider)
 		}
 
-		// Wait for the soonest freeing slot
 		wait := 250 * time.Millisecond
 		for _, st := range statuses {
 			if st.cooldown {
@@ -241,9 +251,9 @@ func (m *Manager) Acquire(ctx context.Context, provider string) (*KeyInfo, error
 	}
 }
 
-// ReportError flags a key as having failed and sets its cooldown.
-func (m *Manager) ReportError(ctx context.Context, provider, fingerprint, kind string, cooldownSecs int) {
-	pool := m.getPool(provider)
+// ReportError flags a key as failed.
+func (m *Manager) ReportError(ctx context.Context, tenant, provider, fingerprint, kind string, cooldownSecs int) {
+	pool := m.getPool(tenant, provider)
 	if pool == nil {
 		return
 	}
@@ -252,17 +262,17 @@ func (m *Manager) ReportError(ctx context.Context, provider, fingerprint, kind s
 	}
 	for _, ki := range pool.Keys {
 		if ki.Fingerprint == fingerprint {
-			errKey := fmt.Sprintf("%s:%s:%d:error", keyPrefix, provider, ki.Index)
+			errKey := fmt.Sprintf("%s:%s:%s:%d:error", keyPrefix, tenant, provider, ki.Index)
 			if err := m.rdb.Set(ctx, errKey, kind, time.Duration(cooldownSecs)*time.Second).Err(); err != nil {
 				slog.Warn("cooldown persist failed", "provider", provider, "err", err)
 			}
-			slog.Warn("key entered cooldown", "provider", provider, "key", ki.Display, "kind", kind)
+			slog.Warn("key entered cooldown", "provider", provider, "key", ki.Display)
 			return
 		}
 	}
 }
 
-// order returns candidates ranked per strategy.
+// order orders candidates per strategy.
 func (m *Manager) order(statuses []keyStatus, pool *Pool) []keyStatus {
 	out := make([]keyStatus, len(statuses))
 	copy(out, statuses)
@@ -272,37 +282,35 @@ func (m *Manager) order(statuses []keyStatus, pool *Pool) []keyStatus {
 			shift := int(pool.rrCursor.Add(1) % uint32(len(out)))
 			out = append(out[shift:], out[:shift]...)
 		}
-	default: // least_used
+	default:
 		sort.SliceStable(out, func(i, j int) bool { return out[i].used < out[j].used })
 	}
 	return out
 }
 
-// snapshotPool batch-reads all keys' rate/cooldown state in one pipeline.
-func (m *Manager) snapshotPool(ctx context.Context, pool *Pool) []keyStatus {
+// snapshotPool batch-reads all keys of pool.
+func (m *Manager) snapshotPool(ctx context.Context, pool *Pool, tenant string) []keyStatus {
+	if len(pool.Keys) == 0 {
+		return nil
+	}
 	now := time.Now()
 	windowStart := now.Add(-defaultWindowMs * time.Millisecond)
 
 	pipe := m.rdb.Pipeline()
-	type idx struct{ k *KeyInfo }
-	counts := pipe.SCard // placeholder to use pipe; replaced below
-	_ = counts
-
-	var cmdZrem = make([]*redis.IntCmd, 0, len(pool.Keys))
-	var cmdZcard = make([]*redis.IntCmd, 0, len(pool.Keys))
-	var cmdExists = make([]*redis.IntCmd, 0, len(pool.Keys))
-	var cmdZrange = make([]*redis.ZSliceCmd, 0, len(pool.Keys))
+	cmdZcard := make([]*redis.IntCmd, 0, len(pool.Keys))
+	cmdExists := make([]*redis.IntCmd, 0, len(pool.Keys))
+	cmdZrange := make([]*redis.ZSliceCmd, 0, len(pool.Keys))
+	cmdZrem := make([]*redis.IntCmd, 0, len(pool.Keys))
 
 	for _, ki := range pool.Keys {
-		rateKey := fmt.Sprintf("%s:%s:%d:requests", keyPrefix, pool.Provider, ki.Index)
-		errKey := fmt.Sprintf("%s:%s:%d:error", keyPrefix, pool.Provider, ki.Index)
+		rateKey := fmt.Sprintf("%s:%s:%s:%d:requests", keyPrefix, tenant, pool.Provider, ki.Index)
+		errKey := fmt.Sprintf("%s:%s:%s:%d:error", keyPrefix, tenant, pool.Provider, ki.Index)
 		cmdZrem = append(cmdZrem, pipe.ZRemRangeByScore(ctx, rateKey, "0", fmt.Sprint(windowStart.UnixMilli())))
 		cmdZcard = append(cmdZcard, pipe.ZCard(ctx, rateKey))
 		cmdExists = append(cmdExists, pipe.Exists(ctx, errKey))
 		cmdZrange = append(cmdZrange, pipe.ZRangeWithScores(ctx, rateKey, 0, 0))
 	}
-
-	_, _ = pipe.Exec(ctx) // tolerate connection failure — callers handle nil counters
+	_, _ = pipe.Exec(ctx)
 
 	out := make([]keyStatus, 0, len(pool.Keys))
 	for i, ki := range pool.Keys {
@@ -317,23 +325,25 @@ func (m *Manager) snapshotPool(ctx context.Context, pool *Pool) []keyStatus {
 		retry := 0.0
 		if cmdZrange[i] != nil && cmdZrange[i].Err() == nil {
 			if zs := cmdZrange[i].Val(); len(zs) > 0 {
-				if retryLast := float64(zs[0].Score) + float64(defaultWindowMs); retryLast > float64(now.UnixMilli()) {
-					retry = (retryLast - float64(now.UnixMilli())) / 1000.0
+				retryAfter := float64(zs[0].Score) + float64(defaultWindowMs) - float64(now.UnixMilli())
+				if retryAfter < 0 {
+					retryAfter = 0
 				}
+				retry = retryAfter / 1000.0
 			}
 		}
-		limited := used >= ki.RequestsLimit
 		out = append(out, keyStatus{
-			key: ki, used: used, limited: limited, cooldown: inCd, retryAfter: retry,
+			key: ki, used: used, limited: used >= ki.RequestsLimit, cooldown: inCd, retryAfter: retry,
 		})
+		_ = cmdZrem[i]
 	}
 	return out
 }
 
-// claim executes the atomic acquire Lua script once for one key.
-func (m *Manager) claim(ctx context.Context, provider string, ki *KeyInfo) (bool, error) {
-	rateKey := fmt.Sprintf("%s:%s:%d:requests", keyPrefix, provider, ki.Index)
-	errKey := fmt.Sprintf("%s:%s:%d:error", keyPrefix, provider, ki.Index)
+// claim executes the atomic Lua acquire script once per candidate key.
+func (m *Manager) claim(ctx context.Context, tenant, provider string, ki *KeyInfo) (bool, error) {
+	rateKey := fmt.Sprintf("%s:%s:%s:%d:requests", keyPrefix, tenant, provider, ki.Index)
+	errKey := fmt.Sprintf("%s:%s:%s:%d:error", keyPrefix, tenant, provider, ki.Index)
 	nonce := fmt.Sprintf("%d-%s", time.Now().UnixNano(), ki.Fingerprint)
 
 	const script = `
@@ -353,7 +363,8 @@ return 1
 	if err != nil {
 		if strings.Contains(err.Error(), "NOSCRIPT") {
 			m.luaSha.Store("")
-			res, err = m.rdb.EvalSha(ctx, m.shaOf(ctx, script), []string{rateKey, errKey},
+			sha = m.shaOf(ctx, script)
+			res, err = m.rdb.EvalSha(ctx, sha, []string{rateKey, errKey},
 				time.Now().UnixMilli(), defaultWindowMs, ki.RequestsLimit, nonce).Int()
 			if err != nil {
 				return false, err
@@ -362,10 +373,10 @@ return 1
 			return false, err
 		}
 	}
-	return res == 1, nil // 2 = rate-limited (slot not consumed), 0 = cooldown
+	return res == 1, nil
 }
 
-// shaOf returns the SHA of the claim script, reloading on NOSCRIPT.
+// shaOf returns the sha of the claim script, reloading after NOSCRIPT.
 func (m *Manager) shaOf(ctx context.Context, script string) string {
 	if v := m.luaSha.Load(); v != nil {
 		if s, ok := v.(string); ok && s != "" {
@@ -380,7 +391,46 @@ func (m *Manager) shaOf(ctx context.Context, script string) string {
 	return sha
 }
 
-// ------------------- helpers -------------------
+// PersistReload merges runtime-added keys that Redis already knows about.
+func (m *Manager) PersistReload(ctx context.Context, tenant string) {
+	if m.rdb == nil {
+		return
+	}
+	keys, err := m.rdb.Keys(ctx, "gw:provider_keys:"+tenant+":*").Result()
+	if err != nil || len(keys) == 0 {
+		return
+	}
+	for _, full := range keys {
+		provider := strings.TrimPrefix(full, "gw:provider_keys:"+tenant+":")
+		raw, err := m.rdb.HGet(ctx, full, "keys").Result()
+		if err != nil {
+			continue
+		}
+		var vals []string
+		if err := json.Unmarshal([]byte(raw), &vals); err != nil || len(vals) == 0 {
+			continue
+		}
+		pool := m.getPool(tenant, provider)
+		if pool == nil {
+			m.RegisterPool(tenant, provider, vals, 0)
+			continue
+		}
+		existing := map[string]bool{}
+		for _, k := range pool.Keys {
+			existing[k.Fingerprint] = true
+		}
+		for _, k := range vals {
+			if !existing[fingerprint(k)] {
+				m.AddKey(tenant, provider, k)
+			}
+		}
+	}
+}
+
+func fingerprint(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])[:10]
+}
 
 func cloneKey(k *KeyInfo) *KeyInfo {
 	if k == nil {
@@ -388,11 +438,6 @@ func cloneKey(k *KeyInfo) *KeyInfo {
 	}
 	out := *k
 	return &out
-}
-
-func fingerprint(raw string) string {
-	sum := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(sum[:])[:10]
 }
 
 func maskKey(key string) string {
@@ -404,39 +449,5 @@ func maskKey(key string) string {
 		return "****" + key[n-2:]
 	default:
 		return key[:3] + "****" + key[n-4:]
-	}
-}
-
-// PersistReload merges runtime-added keys from Redis into the current pools.
-func (m *Manager) PersistReload(ctx context.Context) {
-	keys, err := m.rdb.Keys(ctx, "gw:provider_keys:*").Result()
-	if err != nil || len(keys) == 0 {
-		return
-	}
-	for _, full := range keys {
-		provider := strings.TrimPrefix(full, "gw:provider_keys:")
-		raw, err := m.rdb.HGet(ctx, full, "keys").Result()
-		if err != nil {
-			continue
-		}
-		var vals []string
-		if err := json.Unmarshal([]byte(raw), &vals); err != nil || len(vals) == 0 {
-			continue
-		}
-		pool := m.getPool(provider)
-		if pool == nil {
-			m.RegisterPool(provider, vals, 0)
-			continue
-		}
-		// pool exists: only merge what's missing (by fingerprint).
-		existing := map[string]bool{}
-		for _, k := range pool.Keys {
-			existing[k.Fingerprint] = true
-		}
-		for _, k := range vals {
-			if !existing[fingerprint(k)] {
-				m.AddKey(provider, k)
-			}
-		}
 	}
 }
