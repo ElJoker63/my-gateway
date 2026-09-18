@@ -34,6 +34,8 @@ import { useRouter } from "vue-router";
 import { HugeiconsIcon } from "@hugeicons/vue";
 import { ApiGatewayIcon } from "@hugeicons/core-free-icons";
 import { useAuthStore } from "@/stores/auth";
+import { loadMe } from "@/stores/user";
+import { api } from "@/api/client";
 
 const key = ref("");
 const error = ref("");
@@ -51,6 +53,8 @@ async function submit() {
     if (res.status === 401) throw new Error("Invalid API key");
     if (!res.ok) throw new Error(`Server error (${res.status})`);
     auth.set(key.value.trim());
+    // Load identity so the sidebar knows if we're admin or a user
+    await loadMe(api);
     router.push("/");
   } catch (e) {
     error.value = e.message;

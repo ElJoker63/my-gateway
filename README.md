@@ -62,6 +62,42 @@ An intelligent local gateway between AI coding agents and LLM providers. Reduces
 
 ## 🚀 Quick Start
 
+### One-command install
+
+```bash
+# Linux / macOS / Git Bash on Windows
+bash scripts/install.sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1
+```
+
+That boots Redis + Qdrant + the gateway (Go + Vue dashboard) as containers and prints your
+`GATEWAY_API_KEY` and `GATEWAY_MASTER_KEY` once.
+
+### Or manually
+
+```bash
+docker compose up -d --build
+```
+
+Open `http://localhost:8000/dashboard` — the root URL redirects there automatically.
+
+### Multi-user
+
+Create per-user API keys that get isolated provider pools:
+
+```bash
+curl -X POST http://localhost:8000/api/admin/users \
+  -H "Authorization: Bearer $GATEWAY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "alice"}'
+# → { api_key: "gwu_…" } (shown once)
+```
+
+Each user then manages their own provider keys, OAuth sessions, and combos. See [docs/USERS.md](docs/USERS.md) for the full model.
+
+
 ### 1. Clone and configure
 
 ```bash
